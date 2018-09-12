@@ -13,7 +13,7 @@ def lemmas():
         word_forms = get_word_forms(word).values()
         data = list(set([i for l in [list(x)
                                      for x in word_forms] for i in l if i != word]))
-        return jsonify(success=True, data=data)
+        return jsonify(success=True, lemmas=data)
     except Exception as error:
         return jsonify(success=False, error=error.message)
 
