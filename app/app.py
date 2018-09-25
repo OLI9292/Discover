@@ -22,12 +22,6 @@ CORS(app)
 socketio = SocketIO(app)
 
 db = redis.Redis(host='localhost', port='6379')
-q = Queue(connection=conn)
-
-
-@socketio.on('my event')
-def handle_my_custom_event():
-    print('received event')
 
 
 @app.route("/lemmatizations")
