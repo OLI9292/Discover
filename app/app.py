@@ -30,7 +30,7 @@ def lemmatizations():
         word = request.args.get('word')
         lemmas = get_lemmas(word)
         lcd = lcd_for_word(word, lemmas)
-        return jsonify(success=True, data={"lemmas": lemmas, "lcd": lcd})
+        return jsonify(success=True, lemmas=lemmas, lcd=lcd)
     except Exception as error:
         return jsonify(success=False, error=error.message)
 
