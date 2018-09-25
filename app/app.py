@@ -1,20 +1,107 @@
 import os
+# Flask
 from flask import Flask, Response, jsonify, render_template, request
-
-from word_forms.word_forms import get_word_forms
+from flask_cors import CORS, cross_origin
+# Caching
+import redis
+from rq import Queue
+from worker import conn
+from multiprocessing import Pool
+# Local Modules
+from predictive_corpus import predictive_corpus
+from find_passages import find_passages
+from lemmatization import get_lemmas, lcd_for_word
+# Etc
+from mediawiki import MediaWiki
+wikipedia = MediaWiki()
+import itertools
 
 app = Flask(__name__)
+CORS(app)
+
+db = redis.Redis(host='localhost', port='6379')
 
 
-@app.route("/lemmas")
-def lemmas():
-    word = request.args.get('word')
-    word_forms = get_word_forms(word).values()
-    data = list(set([i for l in [list(x)
-                                 for x in word_forms] for i in l if i != word]))
-    return jsonify(data)
+@app.route("/lemmatizations")
+def lemmatizations():
+    try:
+        word = request.args.get('word')
+        lemmas = get_lemmas(word)
+        lcd = lcd_for_word(word, lemmas)
+        return jsonify(success=True, data={"lemmas": lemmas, "lcd": lcd})
+    except Exception as error:
+        return jsonify(success=False, error=error.message)
+
+
+@app.route("/wikipedia-links")
+def wikipedia_links():
+    try:
+        search = request.args.get('search')
+        links = wikipedia.page(search).links
+
+        pool = Pool()
+        results = pool.map(wikipedia_content, links)
+
+        data = {}
+        for (title, content) in zip(links, results):
+            if content != None:
+                data[title] = len(content)
+
+        return jsonify(success=True, data=data)
+    except Exception as error:
+        return jsonify(success=False, error=error.message)
+
+
+def wikipedia_content(title):
+    try:
+        cached = db.get(title)
+        if cached != None:
+            return cached.decode("utf-8")
+        content = wikipedia.page(title).content
+        clean = content.split("== See also")[0]
+        db.set(title, clean)
+        return clean
+    except Exception as e:
+        print "error fetching " + title, e
+        return None
+
+
+def cached_wikipedia_content(titles):
+    data = {}
+    for title in titles:
+        content = wikipedia_content(title)
+        if content != None:
+            try:
+                data[title] = content
+            except Exception:
+                print "error decoding " + title
+    return data
+
+
+@app.route("/predictive-corpus", methods=['GET', 'POST'])
+def get_predictive_corpus():
+    try:
+        content = cached_wikipedia_content(request.json["wikipedia_titles"])
+        content = "\n".join(content.values())
+        data = predictive_corpus(content)
+        return jsonify(success=True, data=data)
+    except Exception as error:
+        return jsonify(success=False, error=error.message)
+
+
+@app.route("/wikipedia-passages", methods=['GET', 'POST'])
+def wikipedia_passages():
+    try:
+        content = cached_wikipedia_content(request.json["wikipedia_titles"])
+        words = request.json["search_words"]
+        data = [find_passages(content[k], k, words) for k in content.keys()]
+        flattened = list(itertools.chain.from_iterable(data))
+        return jsonify(success=True, data=flattened)
+    except Exception as error:
+        print error
+        return jsonify(success=False)
 
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', debug=True, port=port)
