@@ -1,6 +1,6 @@
 from nltk import word_tokenize
-
 from nltk.tokenize import sent_tokenize
+import itertools
 
 MAX_CONTEXT = 10
 
@@ -9,8 +9,21 @@ def clean_sentence(sentence):
     return " ".join(sentence.strip().split())
 
 
+def make_header(string):
+    if "." in string:
+        return string
+    return "== " + string + " =="
+
+
+def separate_headers(sentence):
+    split_str = "===" if "===" in sentence else "=="
+    return [make_header(x) for x in filter(None, [s.strip() for s in sentence.split(split_str)])]
+
+
 def find_passages(content, title, search_words):
     sentences = map(clean_sentence, sent_tokenize(content))
+    sentences = list(itertools.chain.from_iterable(
+        [separate_headers(s) for s in sentences]))
 
     latest_end_idx = 0
     passages = []

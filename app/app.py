@@ -62,14 +62,16 @@ def wikipedia_links():
 
 def wikipedia_content(title):
     try:
-        content = db.get(title)
-        if content != None:
-            return content
+        cached = db.get(title)
+        if cached != None:
+            return cached.decode("utf-8")
         content = wikipedia.page(title).content
-        db.set(title, content)
-        return content
-    except Exception:
-        print "error fetching " + title
+        clean = content.split("== See also")[0]
+        print clean
+        db.set(title, clean)
+        return clean
+    except Exception as e:
+        print "error fetching " + title, e
         return None
 
 
@@ -79,19 +81,18 @@ def cached_wikipedia_content(titles):
         content = wikipedia_content(title)
         if content != None:
             try:
-                data[title] = content.decode("utf-8")
+                data[title] = content
             except Exception:
                 print "error decoding " + title
     return data
 
 
-@app.route("/predictive-corpus")
+@app.route("/predictive-corpus", methods=['GET', 'POST'])
 def get_predictive_corpus():
     try:
-        ner = request.args.get('ner')
-        ngrams = request.args.get('ngrams')
-        content = cached_wikipedia_content(request.args)
-        data = predictive_corpus(content, ner, ngrams)
+        content = cached_wikipedia_content(request.json["wikipedia_titles"])
+        content = "\n".join(content.values())
+        data = predictive_corpus(content)
         return jsonify(success=True, data=data)
     except Exception as error:
         return jsonify(success=False, error=error.message)

@@ -1,6 +1,6 @@
 import nltk
 from nltk import FreqDist, ne_chunk, pos_tag, word_tokenize
-from nltk.collocations import BigramAssocMeasures, TrigramAssocMeasures
+from nltk.collocations import *
 from nltk.tree import Tree
 
 import numpy
@@ -22,18 +22,14 @@ def merge_two_dicts(x, y):
     return z
 
 
-def predictive_corpus(content, ner, ngrams):
-    if ngrams == None:
-        return ner(content)
-    elif ner == None:
-        return get_ngrams(content)
+def predictive_corpus(content):
     return merge_two_dicts(
-        ner(content),
+        get_ner(content),
         get_ngrams(content)
     )
 
 
-def ner(content):
+def get_ner(content):
     tokenized = word_tokenize(content)
     return get_continuous_chunks(tokenized)
 
