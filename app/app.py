@@ -2,7 +2,6 @@ import os
 # Flask
 from flask import Flask, Response, jsonify, render_template, request
 from flask_cors import CORS, cross_origin
-from flask_socketio import SocketIO, emit, send
 # Caching
 import redis
 from rq import Queue
@@ -19,15 +18,8 @@ import itertools
 
 app = Flask(__name__)
 CORS(app)
-socketio = SocketIO(app)
 
 db = redis.Redis(host='localhost', port='6379')
-q = Queue(connection=conn)
-
-
-@socketio.on('my event')
-def handle_my_custom_event():
-    print('received event')
 
 
 @app.route("/lemmatizations")
@@ -67,7 +59,6 @@ def wikipedia_content(title):
             return cached.decode("utf-8")
         content = wikipedia.page(title).content
         clean = content.split("== See also")[0]
-        print clean
         db.set(title, clean)
         return clean
     except Exception as e:
@@ -113,5 +104,4 @@ def wikipedia_passages():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    socketio.run(app=app, debug=True, host='0.0.0.0',
-                 port=port, use_reloader=False)
+    app.run(host='0.0.0.0', debug=True, port=port)
