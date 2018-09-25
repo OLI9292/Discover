@@ -61,11 +61,10 @@ def wikipedia_content(title):
             return cached.decode("utf-8")
         content = wikipedia.page(title).content
         clean = content.split("== See also")[0]
-        print clean
         db.set(title, clean)
         return clean
     except Exception as e:
-        print "error fetching " + title, e
+        print("error fetching " + title, e)
         return None
 
 
@@ -77,7 +76,7 @@ def cached_wikipedia_content(titles):
             try:
                 data[title] = content
             except Exception:
-                print "error decoding " + title
+                print("error decoding " + title)
     return data
 
 
@@ -101,7 +100,7 @@ def wikipedia_passages():
         flattened = list(itertools.chain.from_iterable(data))
         return jsonify(success=True, data=flattened)
     except Exception as error:
-        print error
+        print(error)
         return jsonify(success=False)
 
 
