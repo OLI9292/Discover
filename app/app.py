@@ -33,7 +33,7 @@ def lemmatizations():
         lcd = lcd_for_word(word, lemmas)
         return jsonify(success=True, lemmas=lemmas, lcd=lcd)
     except Exception as error:
-        return jsonify(success=False, error=error.message)
+        return jsonify(success=False, error=error)
 
 
 @app.route("/wikipedia-links")
@@ -52,7 +52,7 @@ def wikipedia_links():
 
         return jsonify(success=True, data=data)
     except Exception as error:
-        return jsonify(success=False, error=error.message)
+        return jsonify(success=False, error=error)
 
 
 def wikipedia_content(title):
@@ -89,7 +89,7 @@ def get_predictive_corpus():
         data = predictive_corpus(content)
         return jsonify(success=True, data=data)
     except Exception as error:
-        return jsonify(success=False, error=error.message)
+        return jsonify(success=False, error=error)
 
 
 @app.route("/wikipedia-passages", methods=['GET', 'POST'])
