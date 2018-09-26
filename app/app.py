@@ -21,7 +21,8 @@ app = Flask(__name__)
 CORS(app)
 socketio = SocketIO(app)
 
-db = redis.Redis(host='localhost', port='6379')
+redis_url = os.getenv('REDISTOGO_URL', 'redis://localhost:6379')
+db = redis.from_url(redis_url)
 
 
 @app.route("/lemmatizations")
