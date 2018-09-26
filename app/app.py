@@ -42,7 +42,7 @@ def wikipedia_links():
         search = request.args.get('search')
         links = wikipedia.page(search).links
 
-        pool = Pool(10)
+        pool = Pool(5)
         results = pool.map(wikipedia_content, links)
 
         data = {}
