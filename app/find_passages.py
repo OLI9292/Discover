@@ -30,7 +30,7 @@ def find_passages(content, title, search_words):
 
     for idx in range(0, len(sentences)):
         words = word_tokenize(sentences[idx].lower())
-        matches = list(filter(lambda w: w in words, search_words))
+        matches = [w for w in words if any(s in w for s in search_words)]
         if len(matches) > 0:
             start_idx = max(0, idx - MAX_CONTEXT)
             if start_idx < latest_end_idx:
