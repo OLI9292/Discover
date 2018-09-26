@@ -15,6 +15,10 @@ def make_header(string):
     return "== " + string + " =="
 
 
+def is_header(sentence):
+    return "== " in sentence
+
+
 def separate_headers(sentence):
     split_str = "===" if "===" in sentence else "=="
     return [make_header(x) for x in filter(None, [s.strip() for s in sentence.split(split_str)])]
@@ -28,9 +32,19 @@ def find_passages(content, title, search_words):
     latest_end_idx = 0
     passages = []
 
+    search_phrases = [word for word in search_words if word.count(" ") > 0]
+    search_words = list(set(search_words) - set(search_phrases))
+
     for idx in range(0, len(sentences)):
-        words = word_tokenize(sentences[idx].lower())
-        matches = [w for w in words if any(s in w for s in search_words)]
+        sentence = sentences[idx].lower()
+        if is_header(sentence):
+            continue
+
+        words = word_tokenize(sentence)
+        word_matches = [w for w in words if any(s in w for s in search_words)]
+        phrase_matches = [p for p in search_phrases if p in sentence]
+        matches = word_matches + phrase_matches
+
         if len(matches) > 0:
             start_idx = max(0, idx - MAX_CONTEXT)
             if start_idx < latest_end_idx:
