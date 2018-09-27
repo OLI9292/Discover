@@ -36,6 +36,7 @@ def lemmatizations():
 @app.route("/wikipedia-links")
 def get_wikipedia_links():
     try:
+        db.flushall()
         links = wikipedia_links(request.args.get('search'))[0:100]
         pool = Pool(5)
         results = pool.map(wikipedia_content, links)
