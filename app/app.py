@@ -67,8 +67,9 @@ def wikipedia_passages():
     try:
         words = request.json["search_words"]
         titles = request.json["wikipedia_titles"][0:100]
-        pool = Pool(5)
-        data = pool.map(find_passages, [(t, words) for t in titles])
+        # pool = Pool(5)
+        # data = pool.map(find_passages, [(t, words) for t in titles])
+        data = [find_passages(t, words) for t in titles]
         flattened = list(itertools.chain.from_iterable(data))
         return jsonify(success=True, data=flattened)
     except Exception as error:
