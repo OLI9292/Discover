@@ -55,7 +55,7 @@ def get_predictive_corpus():
         titles = request.json["wikipedia_titles"]
         pool = Pool(5)
         data = pool.map(predictive_corpus, titles)
-        return jsonify(success=True, data=data)
+        return jsonify(success=True, data=data[0])
     except Exception as error:
         print(error)
         return jsonify(success=False)
@@ -69,7 +69,7 @@ def wikipedia_passages():
         pool = Pool(5)
         data = pool.map(find_passages, [(t, words) for t in titles])
         flattened = list(itertools.chain.from_iterable(data))
-        return jsonify(success=True, data=flattened[0])
+        return jsonify(success=True, data=flattened)
     except Exception as error:
         print(error)
         return jsonify(success=False)
