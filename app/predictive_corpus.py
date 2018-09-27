@@ -3,6 +3,8 @@ from nltk import FreqDist, ne_chunk, pos_tag, word_tokenize
 from nltk.collocations import *
 from nltk.tree import Tree
 
+from wikipedia import wikipedia_content
+
 import numpy
 
 import string
@@ -22,7 +24,8 @@ def merge_two_dicts(x, y):
     return z
 
 
-def predictive_corpus(content):
+def predictive_corpus(title):
+    content = wikipedia_content(title)
     return merge_two_dicts(
         get_ner(content),
         get_ngrams(content)

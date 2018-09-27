@@ -2,6 +2,8 @@ from nltk import word_tokenize
 from nltk.tokenize import sent_tokenize
 import itertools
 
+from wikipedia import wikipedia_content
+
 MAX_CONTEXT = 10
 
 
@@ -24,7 +26,13 @@ def separate_headers(sentence):
     return [make_header(x) for x in filter(None, [s.strip() for s in sentence.split(split_str)])]
 
 
-def find_passages(content, title, search_words):
+def find_passages(args):
+    return find_passages_unpacked(*args)
+
+
+def find_passages_unpacked(title, search_words):
+    content = wikipedia_content(title)
+
     sentences = map(clean_sentence, sent_tokenize(content))
     sentences = list(itertools.chain.from_iterable(
         [separate_headers(s) for s in sentences]))
