@@ -1,3 +1,4 @@
+import gc
 from nltk import word_tokenize
 from nltk.tokenize import sent_tokenize
 import itertools
@@ -32,6 +33,10 @@ def find_passages(title, search_words):
         return []
 
     sentences = map(clean_sentence, sent_tokenize(content))
+
+    del content
+    gc.collect()
+
     sentences = list(itertools.chain.from_iterable(
         [separate_headers(s) for s in sentences]))
 

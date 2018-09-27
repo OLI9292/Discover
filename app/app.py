@@ -3,7 +3,6 @@ import itertools
 # Flask
 from flask import Flask, Response, jsonify, render_template, request
 from flask_cors import CORS, cross_origin
-from flask_socketio import SocketIO, emit, send
 # Caching
 from multiprocessing import Pool
 # Local Modules
@@ -15,7 +14,6 @@ from cache import clear_variables
 
 app = Flask(__name__)
 CORS(app)
-socketio = SocketIO(app)
 
 # redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
 # db = redis.from_url(redis_url)
@@ -75,5 +73,4 @@ def wikipedia_passages():
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    socketio.run(app=app, debug=True, host='0.0.0.0',
-                 port=port, use_reloader=False)
+    app.run(host='0.0.0.0', debug=True, port=port)
