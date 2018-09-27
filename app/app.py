@@ -5,20 +5,20 @@ from flask import Flask, Response, jsonify, render_template, request
 from flask_cors import CORS, cross_origin
 from flask_socketio import SocketIO, emit, send
 # Caching
-import redis
 from multiprocessing import Pool
 # Local Modules
 from predictive_corpus import predictive_corpus
 from find_passages import find_passages
 from lemmatization import get_lemmas, lcd_for_word
 from wikipedia import wikipedia_links, wikipedia_content
+from cache import clear_variables
 
 app = Flask(__name__)
 CORS(app)
 socketio = SocketIO(app)
 
-redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
-db = redis.from_url(redis_url)
+# redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
+# db = redis.from_url(redis_url)
 
 
 @app.route("/lemmatizations")
@@ -36,7 +36,7 @@ def lemmatizations():
 @app.route("/wikipedia-links")
 def get_wikipedia_links():
     try:
-        db.flushall()
+        clear_variables()
         links = wikipedia_links(request.args.get('search'))[0:100]
         pool = Pool(5)
         results = pool.map(wikipedia_content, links)
