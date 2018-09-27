@@ -27,7 +27,9 @@ def separate_headers(sentence):
 
 
 def find_passages(title, search_words):
-    content = wikipedia_content(title)
+    content = wikipedia_content(title, True)
+    if content == None:
+        return []
 
     sentences = map(clean_sentence, sent_tokenize(content))
     sentences = list(itertools.chain.from_iterable(

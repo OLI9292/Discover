@@ -11,7 +11,7 @@ def wikipedia_links(title):
     return page.links
 
 
-def wikipedia_content(title):
+def wikipedia_content(title, return_content=False):
     try:
         cached = get_variable(title)
         if cached != None:
@@ -19,7 +19,7 @@ def wikipedia_content(title):
         content = wikipedia.page(title).content
         clean = content.split("== See also")[0]
         set_variable(title, clean)
-        return clean
+        return clean if return_content else len(clean)
     except Exception as e:
         print("error fetching " + title, e)
         return None

@@ -41,9 +41,8 @@ def get_wikipedia_links():
         pool = Pool(5)
         results = pool.map(wikipedia_content, links)
         data = {}
-        for (title, content) in zip(links, results):
-            if content != None:
-                data[title] = len(content)
+        for (title, res) in zip(links, results):
+            data[title] = res
         return jsonify(success=True, data=data)
     except Exception as error:
         print(error)
