@@ -37,7 +37,7 @@ def lemmatizations():
 def get_wikipedia_links():
     try:
         clear_variables()
-        links = wikipedia_links(request.args.get('search'))[0:100]
+        links = wikipedia_links(request.args.get('search'))
         pool = Pool(5)
         results = pool.map(wikipedia_content, links)
         data = {}
@@ -65,7 +65,7 @@ def get_predictive_corpus():
 def wikipedia_passages():
     try:
         words = request.json["search_words"]
-        titles = request.json["wikipedia_titles"][0:100]
+        titles = request.json["wikipedia_titles"]
         data = [find_passages(t, words) for t in titles]
         flattened = list(itertools.chain.from_iterable(data))
         return jsonify(success=True, data=flattened)
