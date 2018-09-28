@@ -4,7 +4,7 @@ from nltk.tokenize import sent_tokenize
 import itertools
 
 from wikipedia import wikipedia_content
-
+import time
 MAX_CONTEXT = 10
 
 
@@ -29,13 +29,11 @@ def separate_headers(sentence):
 
 def find_passages(title, search_words):
     content = wikipedia_content(title, True)
+
     if content == None:
         return []
 
     sentences = map(clean_sentence, sent_tokenize(content))
-
-    del content
-    gc.collect()
 
     sentences = list(itertools.chain.from_iterable(
         [separate_headers(s) for s in sentences]))
@@ -43,18 +41,12 @@ def find_passages(title, search_words):
     latest_end_idx = 0
     passages = []
 
-    search_phrases = [word for word in search_words if word.count(" ") > 0]
-    search_words = list(set(search_words) - set(search_phrases))
-
     for idx in range(0, len(sentences)):
         sentence = sentences[idx].lower()
         if is_header(sentence):
             continue
 
-        words = word_tokenize(sentence)
-        word_matches = [w for w in words if any(s in w for s in search_words)]
-        phrase_matches = [p for p in search_phrases if p in sentence]
-        matches = word_matches + phrase_matches
+        matches = [w for w in search_words if " {0}".format(w) in sentence]
 
         if len(matches) > 0:
             start_idx = max(0, idx - MAX_CONTEXT)

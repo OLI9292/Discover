@@ -17,7 +17,7 @@ def wikipedia_content(title, return_content=False):
         if cached != None:
             return cached.decode("utf-8")
         content = wikipedia.page(title).content
-        clean = content.split("== See also")[0]
+        clean = content.split("= See also")[0].split("== References")[0]
         set_variable(title, clean)
         return clean if return_content else len(clean)
     except Exception as e:
