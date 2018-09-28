@@ -27,6 +27,10 @@ def separate_headers(sentence):
     return [make_header(x) for x in filter(None, [s.strip() for s in sentence.split(split_str)])]
 
 
+def pool_find_passages(args):
+    return find_passages(*args)
+
+
 def find_passages(title, search_words):
     content = wikipedia_content(title, True)
 

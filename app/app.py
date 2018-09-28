@@ -7,7 +7,7 @@ from flask_cors import CORS, cross_origin
 from multiprocessing import Pool
 # Local Modules
 from predictive_corpus import predictive_corpus
-from find_passages import find_passages
+from find_passages import pool_find_passages
 from lemmatization import get_lemmas, lcd_for_word
 from wikipedia import wikipedia_links, wikipedia_content, pool_wikipedia_content
 from cache import clear_variables, instance
@@ -81,7 +81,8 @@ def wikipedia_passages():
     try:
         words = request.json["search_words"]
         titles = request.json["wikipedia_titles"]
-        data = (find_passages(t, words) for t in titles)
+        pool = Pool()
+        data = pool.map(pool_find_passages, [(t, words) for t in titles])
         flattened = list(itertools.chain.from_iterable(list(data)))
         return jsonify(success=True, data=flattened)
     except Exception as error:
