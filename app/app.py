@@ -68,8 +68,9 @@ def get_status(task_id):
 def get_predictive_corpus():
     try:
         titles = request.json["wikipedia_titles"]
-        data = [predictive_corpus(t) for t in titles]
-        return jsonify(success=True, data=data[0])
+        content = "\n".join([wikipedia_content(t, True) for t in titles])
+        data = predictive_corpus(content)
+        return jsonify(success=True, data=data)
     except Exception as error:
         print(error)
         return jsonify(success=False)

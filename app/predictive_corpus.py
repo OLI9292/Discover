@@ -24,8 +24,7 @@ def merge_two_dicts(x, y):
     return z
 
 
-def predictive_corpus(title):
-    content = wikipedia_content(title)
+def predictive_corpus(content):
     return merge_two_dicts(
         get_ner(content),
         get_ngrams(content)
