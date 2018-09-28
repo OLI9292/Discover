@@ -19,3 +19,7 @@ def set_variable(variable_name, variable_value):
 def clear_variables():
     my_server = redis.Redis(connection_pool=POOL)
     my_server.flushall()
+
+
+def instance():
+    return redis.Redis(connection_pool=POOL)

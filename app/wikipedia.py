@@ -3,12 +3,21 @@ wikipedia = MediaWiki()
 
 from cache import get_variable, set_variable
 
+from multiprocessing import Pool
+
+import time
+
 
 def wikipedia_links(title):
     page = wikipedia.page(title)
     if page == None:
         return []
     return page.links
+
+
+def pool_wikipedia_content(links):
+    pool = Pool()
+    return pool.map(wikipedia_content, links)
 
 
 def wikipedia_content(title, return_content=False):

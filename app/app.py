@@ -9,14 +9,17 @@ from multiprocessing import Pool
 from predictive_corpus import predictive_corpus
 from find_passages import find_passages
 from lemmatization import get_lemmas, lcd_for_word
-from wikipedia import wikipedia_links, wikipedia_content
-from cache import clear_variables
+from wikipedia import wikipedia_links, wikipedia_content, pool_wikipedia_content
+from cache import clear_variables, instance
+
+from rq import Worker, Queue, Connection
+
+import time
 
 app = Flask(__name__)
 CORS(app)
 
-# redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
-# db = redis.from_url(redis_url)
+q = Queue(connection=instance())
 
 
 @app.route("/lemmatizations")
@@ -36,15 +39,29 @@ def get_wikipedia_links():
     try:
         clear_variables()
         links = wikipedia_links(request.args.get('search'))
-        pool = Pool(5)
-        results = pool.map(wikipedia_content, links)
-        data = {}
-        for (title, res) in zip(links, results):
-            data[title] = res
-        return jsonify(success=True, data=data)
+        job = q.enqueue_call(
+            func=pool_wikipedia_content, args=(links,), result_ttl=5000
+        )
+        return jsonify(success=True, data=links, job=job.get_id())
     except Exception as error:
         print(error)
         return jsonify(success=False)
+
+
+@app.route('/tasks/<task_id>')
+def get_status(task_id):
+    task = q.fetch_job(task_id)
+    if task:
+        response_object = {
+            'status': 'success',
+            'data': {
+                'task_id': task.get_id(),
+                'task_status': task.get_status(),
+            }
+        }
+    else:
+        response_object = {'status': 'error'}
+    return jsonify(response_object)
 
 
 @app.route("/predictive-corpus", methods=['GET', 'POST'])
