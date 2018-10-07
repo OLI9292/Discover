@@ -38,7 +38,9 @@ def lemmatizations():
 def get_wikipedia_links():
     try:
         clear_variables()
-        links = wikipedia_links(request.args.get('search'))
+        search = request.args.get('search')
+        links = [l.strip() for l in search.split(",")
+                 ] if "," in search else wikipedia_links(search)
         job = q.enqueue_call(
             func=pool_wikipedia_content, args=(links,), result_ttl=5000
         )
