@@ -5,14 +5,19 @@ from cache import get_variable, set_variable
 
 from multiprocessing import Pool
 
+import random
+
 import time
 
 
 def wikipedia_links(title):
     page = wikipedia.page(title)
+
     if page == None:
         return []
-    return page.links
+    links = page.links
+    random.shuffle(links)
+    return links[0:300]
 
 
 def pool_wikipedia_content(links):
