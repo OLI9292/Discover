@@ -1,3 +1,6 @@
+import sys
+sys.setrecursionlimit(100000)
+
 import os
 
 from rq import Worker, Queue, Connection

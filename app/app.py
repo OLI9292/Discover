@@ -1,16 +1,21 @@
 import os
 import itertools
-# Flask
+import json
+import os
+import sys
+sys.dont_write_bytecode = True
+
 from flask import Flask, Response, jsonify, render_template, request
 from flask_cors import CORS, cross_origin
-# Caching
+
 from multiprocessing import Pool
-# Local Modules
-from predictive_corpus import predictive_corpus
-from find_passages import pool_find_passages
+
+from find_addresses import find_addresses_in_text
+from index_text import index_text
 from lemmatization import get_lemmas, lcd_for_word
-from wikipedia import wikipedia_links, wikipedia_content, pool_wikipedia_content
 from cache import clear_variables, instance
+
+from werkzeug.utils import secure_filename
 
 from rq import Worker, Queue, Connection
 
@@ -21,33 +26,21 @@ CORS(app)
 
 q = Queue(connection=instance())
 
-
-@app.route("/lemmatizations")
-def lemmatizations():
-    try:
-        word = request.args.get('word')
-        lemmas = get_lemmas(word)
-        lcd = lcd_for_word(word, lemmas)
-        return jsonify(success=True, lemmas=lemmas, lcd=lcd)
-    except Exception as error:
-        print(error)
-        return jsonify(success=False)
+directory = os.path.join(app.instance_path, 'texts')
+if not os.path.exists(directory):
+    os.makedirs(directory)
 
 
-@app.route("/wikipedia-links")
-def get_wikipedia_links():
-    try:
-        clear_variables()
-        search = request.args.get('search')
-        links = [l.strip() for l in search.split(",")
-                 ] if "," in search else wikipedia_links(search)
-        job = q.enqueue_call(
-            func=pool_wikipedia_content, args=(links,), result_ttl=5000
-        )
-        return jsonify(success=True, data=links, job=job.get_id())
-    except Exception as error:
-        print(error)
-        return jsonify(success=False)
+@app.route("/index-texts", methods=['GET', 'POST'])
+def index_texts():
+    f = request.files["text"]
+    filename = f.filename
+    path = os.path.join(app.instance_path, 'texts', secure_filename(filename))
+    f.save(path)
+    index = "architecture"
+    job = q.enqueue_call(func=index_text, args=(
+        path, filename, index), result_ttl=5000)
+    return jsonify(success=True, id=job.id)
 
 
 @app.route('/tasks/<task_id>')
@@ -66,30 +59,23 @@ def get_status(task_id):
     return jsonify(response_object)
 
 
-@app.route("/predictive-corpus", methods=['GET', 'POST'])
-def get_predictive_corpus():
+@app.route("/lemmatizations")
+def lemmatizations():
     try:
-        titles = request.json["wikipedia_titles"]
-        content = "\n".join([wikipedia_content(t, True) for t in titles])
-        data = predictive_corpus(content)
-        return jsonify(success=True, data=data)
+        word = request.args.get('word')
+        lemmas = get_lemmas(word)
+        lcd = lcd_for_word(word, lemmas)
+        return jsonify(success=True, lemmas=lemmas, lcd=lcd)
     except Exception as error:
         print(error)
         return jsonify(success=False)
 
 
-@app.route("/wikipedia-passages", methods=['GET', 'POST'])
-def wikipedia_passages():
-    try:
-        words = request.json["search_words"]
-        titles = request.json["wikipedia_titles"]
-        pool = Pool()
-        data = pool.map(pool_find_passages, [(t, words) for t in titles])
-        flattened = list(itertools.chain.from_iterable(list(data)))
-        return jsonify(success=True, data=flattened)
-    except Exception as error:
-        print(error)
-        return jsonify(success=False)
+@app.route("/find-addresses", methods=['GET', 'POST'])
+def find_addresses():
+    sections = request.json["sections"]
+    addresses = find_addresses_in_text(sections)
+    return jsonify(success=True, data=addresses)
 
 
 if __name__ == "__main__":
