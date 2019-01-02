@@ -1,4 +1,10 @@
+import os
 from io import BytesIO
+import io
+import uuid
+import inflect
+import re
+
 from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
 from pdfminer.converter import TextConverter
 from pdfminer.layout import LAParams
@@ -8,30 +14,43 @@ import ebooklib
 from ebooklib import epub
 
 from nltk.tokenize import sent_tokenize
-import uuid
 
-import inflect
-import re
+from entity_detector.data.number_to_word_mapping import number_to_word_mapping
+
+from rq import get_current_job
 
 from elasticsearch import Elasticsearch
 from elasticsearch import helpers
 
-es = Elasticsearch(
-    ["https://ee2174119d634def91a0a4b2a91c19e4.us-east-1.aws.found.io:9243"],
-    http_auth=('elastic', '3y44M8nGXMrppI9OQWikcxZZ')
-)
+if os.environ.get('IS_HEROKU') != True:
+    import config
+
+ES_URL = os.getenv('ES_URL', config.ES_URL)
+ES_PASSWORD = os.getenv('ES_PASSWORD', config.ES_PASSWORD)
+
+es = Elasticsearch([ES_URL], http_auth=('elastic', ES_PASSWORD))
+
+
+def filename_to_title(filename):
+    return filename.replace(".pdf", "").replace(".epub", "").replace(".txt", "").replace("_", " ").title()
 
 
 def index_text(path, filename, index):
+    print "Parsing " + filename
     text = ""
 
     if filename.endswith(".pdf"):
-        text = convert_pdf_to_text(path, 50)
-    if filename.endswith(".epub"):
+        text = convert_pdf_to_text(path)
+    elif filename.endswith(".epub"):
         text = convert_epub_to_text(path)
+    elif filename.endswith(".txt"):
+        with io.open(path, mode="r", encoding="utf-8") as f:
+            text = f.read()
+    else:
+        return "ERROR"
 
     text = clean(text)
-    texts = tokenize(text, index, filename)
+    texts = tokenize(text, index, filename_to_title(filename))
     helpers.bulk(es, texts, routing=1)
     print "Success"
     return
@@ -51,11 +70,10 @@ def convert_pdf_to_text(path, max_pages=2000):
     for page_number, page in enumerate(PDFPage.get_pages(infile)):
         if page_number > max_pages:
             break
-        if page_number % 5 == 0:
-            print "\t", page_number
+        if page_number % 25 == 0:
+            print "\tprocessing", page_number
         interpreter.process_page(page)
         text += output.getvalue()
-        text += "\n\n<page>" + str(page_number) + "</page>\n\n"
         output.truncate(0)
         output.seek(0)
 
@@ -65,8 +83,8 @@ def convert_pdf_to_text(path, max_pages=2000):
     return text
 
 
-def convert_epub_to_text(filename):
-    book = epub.read_epub(filename)
+def convert_epub_to_text(path):
+    book = epub.read_epub(path)
     html = ""
     for item in book.get_items():
         if item.get_type() == ebooklib.ITEM_DOCUMENT:
@@ -76,32 +94,6 @@ def convert_epub_to_text(filename):
 
 # Data cleaning
 #
-
-
-p = inflect.engine()
-number_to_word_mapping = {}
-word_to_number_mapping = {}
-
-for i in range(1, 250):
-    word_form = p.number_to_words(i)
-    ordinal_word = p.ordinal(word_form)
-    ordinal_number = p.ordinal(i)
-    number_to_word_mapping[ordinal_number] = ordinal_word.replace(
-        "-", " ").title()
-    word_to_number_mapping[ordinal_word.replace(
-        "-", " ").title()] = ordinal_number
-
-
-def convert_word_to_cardinal(data, extension):
-    keys = word_to_number_mapping.keys()
-    keys.sort(lambda x, y: cmp(len(y), len(x)))
-    for key in keys:
-        if key in data:
-            pattern = re.compile(key, re.IGNORECASE)
-            replacement = word_to_number_mapping[key] if extension else re.sub(
-                "[^0-9]", "", word_to_number_mapping[key])
-            data = pattern.sub(replacement, data)
-    return data
 
 
 def normalize_cardinals(data):
@@ -205,6 +197,14 @@ def cut_off_index(text):
     return text
 
 
+def utf8_decode(text):
+    try:
+        text = text.decode('utf-8')
+        return text
+    except UnicodeError:
+        return text
+
+
 def clean(text):
     text = text.replace("-", " ")
     text = remove_multiple_spaces(text)
@@ -212,8 +212,7 @@ def clean(text):
     text = attach_paragraph(text)
     text = normalize_cardinals(text)
     text = cut_off_index(text)
-    text = text.decode('utf-8')
-    return text
+    return utf8_decode(text)
 
 # Format for ElasticSearch
 #
@@ -228,6 +227,10 @@ def tokenize(text, index, title):
     content = sent_tokenize(text)
     chunked = chunks(content, 20)
     _id = str(uuid.uuid4())
+
+    job = get_current_job()
+    job.meta['es_id'] = _id
+    job.save_meta()
 
     t = {
         "_index": index,

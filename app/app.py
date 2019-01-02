@@ -10,7 +10,8 @@ from flask_cors import CORS, cross_origin
 
 from multiprocessing import Pool
 
-from find_addresses import find_addresses_in_text
+from entity_detector.address import find_addresses_in_text
+
 from index_text import index_text
 from lemmatization import get_lemmas, lcd_for_word
 from cache import clear_variables, instance
@@ -37,21 +38,21 @@ def index_texts():
     filename = f.filename
     path = os.path.join(app.instance_path, 'texts', secure_filename(filename))
     f.save(path)
-    index = "architecture"
     job = q.enqueue_call(func=index_text, args=(
-        path, filename, index), result_ttl=5000)
+        path, filename, request.args.get('index')), result_ttl=5000)
     return jsonify(success=True, id=job.id)
 
 
 @app.route('/tasks/<task_id>')
 def get_status(task_id):
-    task = q.fetch_job(task_id)
-    if task:
+    job = q.fetch_job(task_id)
+    if job:
         response_object = {
             'status': 'success',
             'data': {
-                'task_id': task.get_id(),
-                'task_status': task.get_status(),
+                'job_id': job.get_id(),
+                'status': job.get_status(),
+                'es_id': job.meta['es_id']
             }
         }
     else:
@@ -73,9 +74,7 @@ def lemmatizations():
 
 @app.route("/find-addresses", methods=['GET', 'POST'])
 def find_addresses():
-    sections = request.json["sections"]
-    addresses = find_addresses_in_text(sections)
-    return jsonify(success=True, data=addresses)
+    return jsonify(find_addresses_in_text(request.args.get("index"), request.args.get("id")))
 
 
 if __name__ == "__main__":
