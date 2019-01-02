@@ -4,7 +4,7 @@ from word_forms.word_forms import get_word_forms
 def get_lemmas(word):
     other_forms = list(set([item for sublist in [list(x) for x in get_word_forms(
         word).values()] for item in sublist if item != word]))
-    min_matching_len = max(len(word), 3)
+    min_matching_len = min(len(word), 3)
     return [x for x in other_forms if (any(s.isupper() for s in x) == False) & (x[0:min_matching_len] == word[0:min_matching_len])]
 
 

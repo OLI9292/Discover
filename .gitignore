@@ -1,3 +1,7 @@
 .DS_STORE
 venv/
 .vscode/
+app/config.py
+*.pyc
+dump.rdb
+instance/
