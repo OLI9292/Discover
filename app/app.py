@@ -45,7 +45,7 @@ def index_texts():
     
     s3_resource.Bucket('invisible-college-texts').put_object(Key=filename, Body=text)
 
-    job = q.enqueue_call(func=index_text, args=(filename, index), result_ttl=5000)
+    job = q.enqueue_call(func=index_text, args=(filename, index), timeout=1000, result_ttl=5000)
     return jsonify(success=True, id=job.id)
 
 
