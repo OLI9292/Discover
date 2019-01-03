@@ -33,7 +33,7 @@ def index_texts():
     if index == None:
         return jsonify({ 'error': 'index is missing' })
     filename = f.filename
-    path = os.path.join("tmp/", secure_filename(filename))
+    path = os.path.join("/tmp/", secure_filename(filename))
     f.save(path)
     job = q.enqueue_call(func=index_text, args=(path, filename, index), result_ttl=5000)
     return jsonify(success=True, id=job.id)
