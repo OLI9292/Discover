@@ -41,6 +41,7 @@ def filename_to_title(filename):
 
 
 def index_text(path, filename, index):
+    print path
     print "Parsing " + filename
     text = ""
 

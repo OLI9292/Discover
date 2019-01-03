@@ -20,21 +20,18 @@ from rq import Worker, Queue, Connection
 
 import time
 
-app = Flask(__name__)
+app = Flask(__name__, instance_path="/instance")
 CORS(app)
 
 q = Queue(connection=instance())
-
-directory = os.path.join(app.instance_path, 'texts')
-if not os.path.exists(directory):
-    os.makedirs(directory)
 
 
 @app.route("/index-texts", methods=['GET', 'POST'])
 def index_texts():
     f = request.files["text"]
     filename = f.filename
-    path = os.path.join(app.instance_path, 'texts', secure_filename(filename))
+    path = os.path.join(app.instance_path, secure_filename(filename))
+    print path
     f.save(path)
     job = q.enqueue_call(func=index_text, args=(
         path, filename, request.args.get('index')), result_ttl=5000)
