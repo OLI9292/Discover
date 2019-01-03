@@ -20,7 +20,7 @@ from rq import Worker, Queue, Connection
 
 import time
 
-app = Flask(__name__, instance_path="/instance")
+app = Flask(__name__)
 CORS(app)
 
 q = Queue(connection=instance())
@@ -29,12 +29,13 @@ q = Queue(connection=instance())
 @app.route("/index-texts", methods=['GET', 'POST'])
 def index_texts():
     f = request.files["text"]
+    index = request.args.get('index')
+    if index == None:
+        return jsonify({ 'error': 'index is missing' })
     filename = f.filename
     path = os.path.join(app.instance_path, secure_filename(filename))
-    print path
     f.save(path)
-    job = q.enqueue_call(func=index_text, args=(
-        path, filename, request.args.get('index')), result_ttl=5000)
+    job = q.enqueue_call(func=index_text, args=(path, filename, index), result_ttl=5000)
     return jsonify(success=True, id=job.id)
 
 
