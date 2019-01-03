@@ -23,7 +23,10 @@ from elasticsearch import Elasticsearch
 from elasticsearch import helpers
 
 if os.getenv('IS_HEROKU') != True:
-    import config
+    try:
+        import config
+    except ImportError:
+      pass
 
 ES_URL = os.getenv('ES_URL', config.ES_URL)
 ES_PASSWORD = os.getenv('ES_PASSWORD', config.ES_PASSWORD)
