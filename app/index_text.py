@@ -22,7 +22,7 @@ from rq import get_current_job
 from elasticsearch import Elasticsearch
 from elasticsearch import helpers
 
-if os.environ.get('IS_HEROKU') != True:
+if os.getenv('IS_HEROKU') != True:
     import config
 
 ES_URL = os.getenv('ES_URL', config.ES_URL)
