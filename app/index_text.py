@@ -22,14 +22,16 @@ from rq import get_current_job
 from elasticsearch import Elasticsearch
 from elasticsearch import helpers
 
+ES_URL = os.getenv('ES_URL', "")
+ES_PASSWORD = os.getenv('ES_PASSWORD', "")
+
 if os.getenv('IS_HEROKU') != True:
     try:
         import config
+        ES_URL = config.ES_URL
+        ES_PASSWORD = config.ES_PASSWORD
     except ImportError:
       pass
-
-ES_URL = os.getenv('ES_URL', config.ES_URL)
-ES_PASSWORD = os.getenv('ES_PASSWORD', config.ES_PASSWORD)
 
 es = Elasticsearch([ES_URL], http_auth=('elastic', ES_PASSWORD))
 
