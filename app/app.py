@@ -50,7 +50,7 @@ def get_status(task_id):
             'data': {
                 'job_id': job.get_id(),
                 'status': job.get_status(),
-                'es_id': job.meta['es_id']
+                'es_id': job.meta.get('es_id')
             }
         }
     else:
