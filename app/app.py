@@ -10,7 +10,7 @@ from flask_cors import CORS, cross_origin
 
 from entity_detector.address import find_addresses_in_text
 
-from index_text import index_text
+from index_text import index_text, convert_epub_to_text
 from lemmatization import get_lemmas, lcd_for_word
 from cache import clear_variables, instance
 
@@ -20,24 +20,32 @@ from rq import Worker, Queue, Connection
 
 import time
 
+from s3 import s3_resource
+
 app = Flask(__name__)
 CORS(app)
 
 q = Queue(connection=instance())
 
-directory = os.path.join(app.instance_path, 'texts')
-if not os.path.exists(directory):
-    os.makedirs(directory)
-
 
 @app.route("/index-texts", methods=['GET', 'POST'])
 def index_texts():
-    f = request.files["text"]
-    filename = f.filename
-    path = os.path.join(app.instance_path, 'texts', secure_filename(filename))
-    f.save(path)
-    job = q.enqueue_call(func=index_text, args=(
-        path, filename, request.args.get('index')), result_ttl=5000)
+    text = request.files["text"]
+    filename = text.filename
+    index = request.args.get('index')
+    if index == None:
+        return jsonify({ 'error': 'index is missing' })    
+    
+    if filename.endswith("epub"):
+        if os.path.exists("tmp") == False:
+            os.makedirs("tmp")
+        text.save("tmp/" + filename)
+        text = convert_epub_to_text("tmp/" + filename)
+        filename = filename.replace("epub", "txt")
+    
+    s3_resource.Bucket('invisible-college-texts').put_object(Key=filename, Body=text)
+
+    job = q.enqueue_call(func=index_text, args=(filename, index), result_ttl=5000)
     return jsonify(success=True, id=job.id)
 
 
@@ -50,7 +58,7 @@ def get_status(task_id):
             'data': {
                 'job_id': job.get_id(),
                 'status': job.get_status(),
-                'es_id': job.meta['es_id']
+                'es_id': job.meta.get('es_id')
             }
         }
     else:

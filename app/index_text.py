@@ -5,6 +5,9 @@ import uuid
 import inflect
 import re
 
+from s3 import s3_client
+
+from cStringIO import StringIO
 from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
 from pdfminer.converter import TextConverter
 from pdfminer.layout import LAParams
@@ -22,52 +25,44 @@ from rq import get_current_job
 from elasticsearch import Elasticsearch
 from elasticsearch import helpers
 
-if os.environ.get('IS_HEROKU') != True:
-    import config
+ES_URL = os.getenv('ES_URL', "")
+ES_PASSWORD = os.getenv('ES_PASSWORD', "")
 
-ES_URL = os.getenv('ES_URL', config.ES_URL)
-ES_PASSWORD = os.getenv('ES_PASSWORD', config.ES_PASSWORD)
+if os.getenv('IS_HEROKU') != True:
+    try:
+        import config
+        ES_URL = config.ES_URL
+        ES_PASSWORD = config.ES_PASSWORD
+    except ImportError:
+      pass
 
 es = Elasticsearch([ES_URL], http_auth=('elastic', ES_PASSWORD))
-
 
 def filename_to_title(filename):
     return filename.replace(".pdf", "").replace(".epub", "").replace(".txt", "").replace("_", " ").title()
 
-
-def index_text(path, filename, index):
-    print "Parsing " + filename
-    text = ""
-
-    if filename.endswith(".pdf"):
-        text = convert_pdf_to_text(path)
-    elif filename.endswith(".epub"):
-        text = convert_epub_to_text(path)
-    elif filename.endswith(".txt"):
-        with io.open(path, mode="r", encoding="utf-8") as f:
-            text = f.read()
-    else:
-        return "ERROR"
-
+def index_text(filename, index):
+    obj = s3_client.get_object(Bucket='invisible-college-texts', Key=filename)
+    text = obj['Body'].read()
+    if filename.endswith("pdf"):
+        text = convert_pdf_to_text(text)
     text = clean(text)
     texts = tokenize(text, index, filename_to_title(filename))
     helpers.bulk(es, texts, routing=1)
-    print "Success"
     return
 
 # File Conversion
 #
 
-
-def convert_pdf_to_text(path, max_pages=2000):
+def convert_pdf_to_text(stream, max_pages=2000):
     output = BytesIO()
     manager = PDFResourceManager()
     converter = TextConverter(manager, output, laparams=LAParams())
     interpreter = PDFPageInterpreter(manager, converter)
 
     text = ""
-    infile = file(path, 'rb')
-    for page_number, page in enumerate(PDFPage.get_pages(infile)):
+    fp = StringIO(stream)
+    for page_number, page in enumerate(PDFPage.get_pages(fp)):
         if page_number > max_pages:
             break
         if page_number % 25 == 0:
@@ -77,7 +72,7 @@ def convert_pdf_to_text(path, max_pages=2000):
         output.truncate(0)
         output.seek(0)
 
-    infile.close()
+    fp.close()
     converter.close()
     output.close()
     return text
