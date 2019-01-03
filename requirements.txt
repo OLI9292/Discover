@@ -21,8 +21,6 @@ itsdangerous==0.24
 Jinja2==2.10
 lxml==4.2.5
 MarkupSafe==1.0
-mkl-fft==1.0.4
-mkl-random==1.0.1
 monotonic==1.5
 nltk==3.3
 numpy==1.15.1
