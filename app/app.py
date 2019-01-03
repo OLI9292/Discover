@@ -36,8 +36,9 @@ def index_texts():
         return jsonify({ 'error': 'index is missing' })
     
     filename = f.filename
+    print "Hi1"
     s3_resource.Bucket('invisible-college-images').put_object(Key=filename, Body=f)
-
+    print "Hi2"
     job = q.enqueue_call(func=index_text, args=(filename, index), result_ttl=5000)
     return jsonify(success=True, id=job.id)
 

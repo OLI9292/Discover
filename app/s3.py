@@ -18,6 +18,6 @@ session = boto3.Session(
     aws_secret_access_key="WcbdU3Rhuvl02xzR95pETD1+4UaDrzHji8rfGjLFWcbdU3Rhuvl02xzR95pETD1+4UaDrzHji8rfGjLF",
     region_name="us-east-1"
 )
-
+print "Hi"
 s3_client = boto3.client('s3')
 s3_resource = boto3.resource('s3')
