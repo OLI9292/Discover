@@ -10,7 +10,7 @@ from flask_cors import CORS, cross_origin
 
 from entity_detector.address import find_addresses_in_text
 
-from index_text import index_text
+from index_text import index_text, convert_epub_to_text
 from lemmatization import get_lemmas, lcd_for_word
 from cache import clear_variables, instance
 
@@ -31,11 +31,21 @@ q = Queue(connection=instance())
 @app.route("/index-texts", methods=['GET', 'POST'])
 def index_texts():
     f = request.files["text"]
+    filename = f.filename
     index = request.args.get('index')
     if index == None:
         return jsonify({ 'error': 'index is missing' })    
-    filename = f.filename
-    s3_resource.Bucket('invisible-college-images').put_object(Key=filename, Body=f)
+    
+    if os.path.exists("tmp") == False:
+        os.makedirs("tmp")
+    
+    if filename.endswith("epub"):
+        f.save("tmp/" + filename)
+        text = convert_epub_to_text("tmp/" + filename)
+        filename = filename.replace("epub", "txt")
+    
+    s3_resource.Bucket('invisible-college-images').put_object(Key=filename, Body=text)
+
     job = q.enqueue_call(func=index_text, args=(filename, index), result_ttl=5000)
     return jsonify(success=True, id=job.id)
 

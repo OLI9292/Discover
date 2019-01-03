@@ -20,5 +20,4 @@ session = boto3.Session(
 )
 
 s3_client = boto3.client('s3', "us-east-1")
-print s3_client
 s3_resource = boto3.resource('s3', "us-east-1")

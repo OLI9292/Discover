@@ -47,10 +47,10 @@ def index_text(filename, index):
 
     if filename.endswith(".pdf"):
         text = convert_pdf_to_text(text)
+
     text = clean(text)
     texts = tokenize(text, index, filename_to_title(filename))
     helpers.bulk(es, texts, routing=1)
-    print "Success"
     return
 
 # File Conversion
