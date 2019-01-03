@@ -4,4 +4,4 @@ venv/
 app/config.py
 *.pyc
 dump.rdb
-instance/
+tmp/
