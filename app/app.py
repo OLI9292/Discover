@@ -25,6 +25,9 @@ CORS(app)
 
 q = Queue(connection=instance())
 
+directory = "/instance"
+if not os.path.exists("/instance"):
+    os.makedirs("/instance")
 
 @app.route("/index-texts", methods=['GET', 'POST'])
 def index_texts():
