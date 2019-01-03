@@ -42,12 +42,10 @@ def filename_to_title(filename):
     return filename.replace(".pdf", "").replace(".epub", "").replace(".txt", "").replace("_", " ").title()
 
 def index_text(filename, index):
-    obj = s3_client.get_object(Bucket='invisible-college-images', Key=filename)
+    obj = s3_client.get_object(Bucket='invisible-college-texts', Key=filename)
     text = obj['Body'].read()
-
-    if filename.endswith(".pdf"):
+    if filename.endswith("pdf"):
         text = convert_pdf_to_text(text)
-
     text = clean(text)
     texts = tokenize(text, index, filename_to_title(filename))
     helpers.bulk(es, texts, routing=1)

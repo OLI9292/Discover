@@ -30,21 +30,20 @@ q = Queue(connection=instance())
 
 @app.route("/index-texts", methods=['GET', 'POST'])
 def index_texts():
-    f = request.files["text"]
-    filename = f.filename
+    text = request.files["text"]
+    filename = text.filename
     index = request.args.get('index')
     if index == None:
         return jsonify({ 'error': 'index is missing' })    
     
-    if os.path.exists("tmp") == False:
-        os.makedirs("tmp")
-    
     if filename.endswith("epub"):
-        f.save("tmp/" + filename)
+        if os.path.exists("tmp") == False:
+            os.makedirs("tmp")
+        text.save("tmp/" + filename)
         text = convert_epub_to_text("tmp/" + filename)
         filename = filename.replace("epub", "txt")
     
-    s3_resource.Bucket('invisible-college-images').put_object(Key=filename, Body=text)
+    s3_resource.Bucket('invisible-college-texts').put_object(Key=filename, Body=text)
 
     job = q.enqueue_call(func=index_text, args=(filename, index), result_ttl=5000)
     return jsonify(success=True, id=job.id)
