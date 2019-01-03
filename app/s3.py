@@ -18,5 +18,6 @@ session = boto3.Session(
     aws_secret_access_key=AWS_SECRET_ACCESS_KEY
 )
 
-s3_client = boto3.client('s3', "us-east-1",  config=Config(signature_version="s3v4"))
+s3_client = boto3.client('s3', "us-east-1")
+print s3_client
 s3_resource = boto3.resource('s3')
