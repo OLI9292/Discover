@@ -72,6 +72,7 @@ def convert_pdf_to_text(stream, max_pages=2000):
         if page_number % 25 == 0:
             print "\tprocessing", page_number
         interpreter.process_page(page)
+        text += "\n\n<page>" + str(page_number) + "</page>\n\n"
         text += output.getvalue()
         output.truncate(0)
         output.seek(0)
@@ -223,6 +224,8 @@ def chunks(l, n):
 
 def tokenize(text, index, title):
     documents = []
+    
+    total_word_count = len(text.split())
     content = sent_tokenize(text)
     chunked = chunks(content, 20)
     _id = str(uuid.uuid4())
@@ -231,11 +234,32 @@ def tokenize(text, index, title):
     job.meta['es_id'] = _id
     job.save_meta()
 
+    passages = [] 
+    word_count = 0
+
+    for section, sentences in enumerate(chunked):
+        word_count += len(" ".join(sentences).split())
+        word_index_perc = round((float(word_count) / total_word_count) * 100, 2)
+        found_at = str(word_count) + "/" + str(total_word_count) + " (" + str(word_index_perc) + "%)"
+        passages.append({
+            "_index": index,
+            "_type": "_doc",
+            "section": section,
+            "title": title,
+            "sentences": sentences,
+            "found_at": found_at,
+            "join_field": {
+                "name": "passage",
+                "parent": _id
+            }
+        })
+
     t = {
         "_index": index,
         "_type": "_doc",
         "_id": _id,
         "title": title,
+        "word_count": total_word_count,
         "sections_count": len(chunked),
         "join_field": {
             "name": "book"
@@ -243,18 +267,5 @@ def tokenize(text, index, title):
     }
 
     documents.append(t)
-
-    passages = [{
-        "_index": index,
-        "_type": "_doc",
-        "section": section,
-        "title": title,
-        "sentences": sentences,
-        "join_field": {
-            "name": "passage",
-            "parent": _id
-        }
-    } for section, sentences in enumerate(chunked)]
-
     documents.extend(passages)
     return documents
