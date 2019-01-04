@@ -80,7 +80,8 @@ def lemmatizations():
 
 @app.route("/find-addresses", methods=['GET', 'POST'])
 def find_addresses():
-    return jsonify(find_addresses_in_text(request.args.get("index"), request.args.get("id")))
+    data = find_addresses_in_text(request.args.get("index"), request.args.get("id"))
+    return jsonify(addresses=data)
 
 
 if __name__ == "__main__":

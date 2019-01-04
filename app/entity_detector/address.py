@@ -82,7 +82,8 @@ def find_addresses_in_sentence(text):
 
 def find_addresses_in_text(index, _id, size=1000):
     query = {"query": {"parent_id": {"type": "passage", "id": _id}}}
-    hits = es.search(index=index, body=query, size=size)["hits"]["hits"]
+    hits = es.search(index=index, body=query, size=size)
+    hits = hits["hits"]["hits"]
 
     all_addresses = []
 
