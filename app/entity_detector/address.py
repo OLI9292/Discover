@@ -79,11 +79,20 @@ def find_addresses_in_sentence(text):
         r'\d{1,4} \b[A-Z][a-z]+\b(?:\s+[A-Z][a-z]+\b)*', text)
     return [a for a in addresses if is_good_address(a)]
 
+def find_page_number(hits, idx):
+    while True:
+        text = "\n".join(hits[idx]["_source"]["sentences"])
+        result = re.search('<page>(.*)</page>', text)
+        if result != None:
+            return result.group(0).split(">")[1].split("<")[0]
+        if idx == 0:
+            return None
+        idx -= 1
 
 def find_addresses_in_text(index, _id, size=1000):
     query = {"query": {"parent_id": {"type": "passage", "id": _id}}}
-    hits = es.search(index=index, body=query, size=size)["hits"]["hits"]
-
+    hits = es.search(index=index, body=query, size=size)
+    hits = hits["hits"]["hits"]
     all_addresses = []
 
     for idx in range(len(hits)):
@@ -100,11 +109,16 @@ def find_addresses_in_text(index, _id, size=1000):
                           1]["_source"]["sentences"] if has_next_group else []
         groups = last_group + group + next_group
 
+        page_number = find_page_number(hits, idx)
+        word_count = hits[idx]["_source"]["found_at"]
+        
         for sentence_idx in range(len(group)):
             addresses = find_addresses_in_sentence(group[sentence_idx])
             addresses = [{
                 "address": address,
                 "section": idx,
+                "word_count": word_count,
+                "page_number": page_number,
                 "sentence": sentence_idx
             } for address in addresses if is_not_using_citation(address, groups) & is_not_figure(group[sentence_idx], address)]
             all_addresses += addresses

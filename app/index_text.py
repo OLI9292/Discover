@@ -42,14 +42,20 @@ def filename_to_title(filename):
     return filename.replace(".pdf", "").replace(".epub", "").replace(".txt", "").replace("_", " ").title()
 
 def index_text(filename, index):
-    obj = s3_client.get_object(Bucket='invisible-college-texts', Key=filename)
-    text = obj['Body'].read()
-    if filename.endswith("pdf"):
-        text = convert_pdf_to_text(text)
-    text = clean(text)
-    texts = tokenize(text, index, filename_to_title(filename))
-    helpers.bulk(es, texts, routing=1)
-    return
+    try:
+        obj = s3_client.get_object(Bucket='invisible-college-texts', Key=filename)
+        text = obj['Body'].read()
+        if filename.endswith("pdf"):
+            text = convert_pdf_to_text(text)
+        text = clean(text)
+        texts = tokenize(text, index, filename_to_title(filename))
+        helpers.bulk(es, texts, routing=1)
+        return
+    except Exception as error:
+        job = get_current_job()
+        job.meta['error'] = error.message
+        job.save_meta()
+        return
 
 # File Conversion
 #
@@ -68,6 +74,7 @@ def convert_pdf_to_text(stream, max_pages=2000):
         if page_number % 25 == 0:
             print "\tprocessing", page_number
         interpreter.process_page(page)
+        text += "\n\n<page>" + str(page_number) + "</page>\n\n"
         text += output.getvalue()
         output.truncate(0)
         output.seek(0)
@@ -192,22 +199,20 @@ def cut_off_index(text):
     return text
 
 
-def utf8_decode(text):
+def decode(text):
     try:
-        text = text.decode('utf-8')
-        return text
-    except UnicodeError:
-        return text
-
+        return text.decode('utf-8')
+    except UnicodeError as error:
+        return text.decode('utf-16')
 
 def clean(text):
+    text = decode(text)
     text = text.replace("-", " ")
     text = remove_multiple_spaces(text)
     text = attach_overrun_words(text)
     text = attach_paragraph(text)
     text = normalize_cardinals(text)
-    text = cut_off_index(text)
-    return utf8_decode(text)
+    return cut_off_index(text)
 
 # Format for ElasticSearch
 #
@@ -218,7 +223,9 @@ def chunks(l, n):
 
 
 def tokenize(text, index, title):
-    documents = []
+    documents = []    
+    total_word_count = len(text.split())
+    
     content = sent_tokenize(text)
     chunked = chunks(content, 20)
     _id = str(uuid.uuid4())
@@ -227,11 +234,32 @@ def tokenize(text, index, title):
     job.meta['es_id'] = _id
     job.save_meta()
 
+    passages = [] 
+    word_count = 0
+
+    for section, sentences in enumerate(chunked):
+        word_count += len(" ".join(sentences).split())
+        word_index_perc = round((float(word_count) / total_word_count) * 100, 2)
+        found_at = str(word_count) + "/" + str(total_word_count) + " (" + str(word_index_perc) + "%)"
+        passages.append({
+            "_index": index,
+            "_type": "_doc",
+            "section": section,
+            "title": title,
+            "sentences": sentences,
+            "found_at": found_at,
+            "join_field": {
+                "name": "passage",
+                "parent": _id
+            }
+        })
+
     t = {
         "_index": index,
         "_type": "_doc",
         "_id": _id,
         "title": title,
+        "word_count": total_word_count,
         "sections_count": len(chunked),
         "join_field": {
             "name": "book"
@@ -239,18 +267,5 @@ def tokenize(text, index, title):
     }
 
     documents.append(t)
-
-    passages = [{
-        "_index": index,
-        "_type": "_doc",
-        "section": section,
-        "title": title,
-        "sentences": sentences,
-        "join_field": {
-            "name": "passage",
-            "parent": _id
-        }
-    } for section, sentences in enumerate(chunked)]
-
     documents.extend(passages)
     return documents
