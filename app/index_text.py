@@ -53,7 +53,7 @@ def index_text(filename, index):
         return
     except Exception as error:
         job = get_current_job()
-        job.meta['error'] = error.message
+        job.meta['error'] = job.meta.get('error') or error.message
         job.save_meta()
         return
 
@@ -203,7 +203,13 @@ def decode(text):
     try:
         return text.decode('utf-8')
     except UnicodeError as error:
-        return text.decode('utf-16')
+        try:
+            return text.decode('utf-16')
+        except Exception as error:
+            job = get_current_job()
+            job.meta['error'] = "Could not decode file."
+            job.save_meta()
+            return
 
 def clean(text):
     text = decode(text)
