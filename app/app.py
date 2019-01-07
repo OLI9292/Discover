@@ -34,7 +34,7 @@ def index_texts():
     filename = text.filename
     index = request.args.get('index')
     if index == None:
-        return jsonify({ 'error': 'index is missing' })    
+        return jsonify(error="index missing")
     
     if filename.endswith("epub"):
         if os.path.exists("tmp") == False:
@@ -44,26 +44,23 @@ def index_texts():
         filename = filename.replace("epub", "txt")
     
     s3_resource.Bucket('invisible-college-texts').put_object(Key=filename, Body=text)
-
     job = q.enqueue_call(func=index_text, args=(filename, index), timeout=1000, result_ttl=5000)
-    return jsonify(success=True, id=job.id)
+    return jsonify(id=job.id)
 
 
 @app.route('/tasks/<task_id>')
 def get_status(task_id):
     job = q.fetch_job(task_id)
     if job:
-        response_object = {
-            'status': 'success',
+        return jsonify({
             'data': {
                 'job_id': job.get_id(),
                 'status': job.get_status(),
-                'es_id': job.meta.get('es_id')
+                'es_id': job.meta.get('es_id'),
+                'error': job.meta.get('error')
             }
-        }
-    else:
-        response_object = {'status': 'error'}
-    return jsonify(response_object)
+        })    
+    return jsonify(error="not found")
 
 
 @app.route("/lemmatizations")
@@ -72,10 +69,9 @@ def lemmatizations():
         word = request.args.get('word')
         lemmas = get_lemmas(word)
         lcd = lcd_for_word(word, lemmas)
-        return jsonify(success=True, lemmas=lemmas, lcd=lcd)
+        return jsonify(lemmas=lemmas, lcd=lcd)
     except Exception as error:
-        print(error)
-        return jsonify(success=False)
+        return jsonify(error=error)
 
 
 @app.route("/find-addresses", methods=['GET', 'POST'])

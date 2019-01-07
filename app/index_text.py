@@ -52,8 +52,10 @@ def index_text(filename, index):
         helpers.bulk(es, texts, routing=1)
         return
     except Exception as error:
-        print("ERR", error)
-        return { "error": error }
+        job = get_current_job()
+        job.meta['error'] = error.message
+        job.save_meta()
+        return
 
 # File Conversion
 #
@@ -197,22 +199,20 @@ def cut_off_index(text):
     return text
 
 
-def utf8_decode(text):
+def decode(text):
     try:
-        text = text.decode('utf-8')
-        return text
-    except UnicodeError:
-        return text
-
+        return text.decode('utf-8')
+    except UnicodeError as error:
+        return text.decode('utf-16')
 
 def clean(text):
+    text = decode(text)
     text = text.replace("-", " ")
     text = remove_multiple_spaces(text)
     text = attach_overrun_words(text)
     text = attach_paragraph(text)
     text = normalize_cardinals(text)
-    text = cut_off_index(text)
-    return utf8_decode(text)
+    return cut_off_index(text)
 
 # Format for ElasticSearch
 #
@@ -223,9 +223,9 @@ def chunks(l, n):
 
 
 def tokenize(text, index, title):
-    documents = []
-    
+    documents = []    
     total_word_count = len(text.split())
+    
     content = sent_tokenize(text)
     chunked = chunks(content, 20)
     _id = str(uuid.uuid4())
