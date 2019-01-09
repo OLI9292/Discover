@@ -5,10 +5,19 @@ import re
 from data.manhattan_streets_without_road_types import manhattan_streets_without_road_types
 from data.stop_words import stop_words
 
-es = Elasticsearch(
-    ["https://ee2174119d634def91a0a4b2a91c19e4.us-east-1.aws.found.io:9243"],
-    http_auth=('elastic', '3y44M8nGXMrppI9OQWikcxZZ')
-)
+ES_URL = os.getenv('ES_URL', "")
+ES_PASSWORD = os.getenv('ES_PASSWORD', "")
+
+if os.getenv('IS_HEROKU') != True:
+    try:
+        import config
+        ES_URL = config.ES_URL
+        ES_PASSWORD = config.ES_PASSWORD
+    except ImportError:
+      pass
+
+es = Elasticsearch([ES_URL], http_auth=('elastic', ES_PASSWORD))
+
 
 BAD_STRINGS = ["published", "acknowledgments"]
 COMMON_ROAD_TYPES = ["street", "avenue", "road"]
