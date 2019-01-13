@@ -13,30 +13,19 @@ from pdfminer.converter import TextConverter
 from pdfminer.layout import LAParams
 from pdfminer.pdfpage import PDFPage
 
+import chardet
+
 import ebooklib
 from ebooklib import epub
 
 from nltk.tokenize import sent_tokenize
 
-from entity_detector.data.number_to_word_mapping import number_to_word_mapping
+from data.number_to_word_mapping import number_to_word_mapping
 
 from rq import get_current_job
 
-from elasticsearch import Elasticsearch
 from elasticsearch import helpers
-
-ES_URL = os.getenv('ES_URL', "")
-ES_PASSWORD = os.getenv('ES_PASSWORD', "")
-
-if os.getenv('IS_HEROKU') != True:
-    try:
-        import config
-        ES_URL = config.ES_URL
-        ES_PASSWORD = config.ES_PASSWORD
-    except ImportError:
-      pass
-
-es = Elasticsearch([ES_URL], http_auth=('elastic', ES_PASSWORD))
+from es import es_client
 
 def filename_to_title(filename):
     return filename.replace(".pdf", "").replace(".epub", "").replace(".txt", "").replace("_", " ").title()
@@ -49,7 +38,7 @@ def index_text(filename, index):
             text = convert_pdf_to_text(text)
         text = clean(text)
         texts = tokenize(text, index, filename_to_title(filename))
-        helpers.bulk(es, texts, routing=1)
+        helpers.bulk(es_client, texts, routing=1)
         return
     except Exception as error:
         job = get_current_job()
@@ -199,17 +188,15 @@ def cut_off_index(text):
     return text
 
 
-def decode(text):
+def decode(text):    
     try:
-        return text.decode('utf-8')
-    except UnicodeError as error:
-        try:
-            return text.decode('utf-16')
-        except Exception as error:
-            job = get_current_job()
-            job.meta['error'] = "Could not decode file."
-            job.save_meta()
-            return
+        encoding = chardet.detect(text)["encoding"]
+        return text.decode(encoding)
+    except Exception as error:
+        job = get_current_job()
+        job.meta['error'] = "Could not decode file."
+        job.save_meta()
+        raise
 
 def clean(text):
     text = decode(text)

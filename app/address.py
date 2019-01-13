@@ -5,10 +5,7 @@ import re
 from data.manhattan_streets_without_road_types import manhattan_streets_without_road_types
 from data.stop_words import stop_words
 
-es = Elasticsearch(
-    ["https://ee2174119d634def91a0a4b2a91c19e4.us-east-1.aws.found.io:9243"],
-    http_auth=('elastic', '3y44M8nGXMrppI9OQWikcxZZ')
-)
+from es import es_client
 
 BAD_STRINGS = ["published", "acknowledgments"]
 COMMON_ROAD_TYPES = ["street", "avenue", "road"]
@@ -91,7 +88,8 @@ def find_page_number(hits, idx):
 
 def find_addresses_in_text(index, _id, size=1000):
     query = {"query": {"parent_id": {"type": "passage", "id": _id}}}
-    hits = es.search(index=index, body=query, size=size)
+    hits = es_client.search(index=index, body=query, size=size)
+
     hits = hits["hits"]["hits"]
     all_addresses = []
 
