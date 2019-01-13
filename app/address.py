@@ -5,19 +5,7 @@ import re
 from data.manhattan_streets_without_road_types import manhattan_streets_without_road_types
 from data.stop_words import stop_words
 
-ES_URL = os.getenv('ES_URL', "")
-ES_PASSWORD = os.getenv('ES_PASSWORD', "")
-
-if os.getenv('IS_HEROKU') != True:
-    try:
-        import config
-        ES_URL = config.ES_URL
-        ES_PASSWORD = config.ES_PASSWORD
-    except ImportError:
-      pass
-
-es = Elasticsearch([ES_URL], http_auth=('elastic', ES_PASSWORD))
-
+from es import es_client
 
 BAD_STRINGS = ["published", "acknowledgments"]
 COMMON_ROAD_TYPES = ["street", "avenue", "road"]
@@ -100,7 +88,8 @@ def find_page_number(hits, idx):
 
 def find_addresses_in_text(index, _id, size=1000):
     query = {"query": {"parent_id": {"type": "passage", "id": _id}}}
-    hits = es.search(index=index, body=query, size=size)
+    hits = es_client.search(index=index, body=query, size=size)
+
     hits = hits["hits"]["hits"]
     all_addresses = []
 

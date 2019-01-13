@@ -8,25 +8,22 @@ sys.dont_write_bytecode = True
 from flask import Flask, Response, jsonify, render_template, request
 from flask_cors import CORS, cross_origin
 
-from entity_detector.address import find_addresses_in_text
-
-from index_text import index_text, convert_epub_to_text
 from lemmatization import get_lemmas, lcd_for_word
-from cache import clear_variables, instance
+from address import find_addresses_in_text
+from index_text import index_text, convert_epub_to_text
 
-from werkzeug.utils import secure_filename
-
-from rq import Worker, Queue, Connection
-
-import time
+from rq import Queue
+from rq.registry import StartedJobRegistry
+from redis import Redis
 
 from s3 import s3_resource
 
 app = Flask(__name__)
 CORS(app)
 
-q = Queue(connection=instance())
-
+redis_conn = Redis()
+q = Queue(connection=redis_conn)
+registry = StartedJobRegistry('default', connection=redis_conn)
 
 @app.route("/index-texts", methods=['GET', 'POST'])
 def index_texts():
@@ -35,15 +32,21 @@ def index_texts():
     index = request.args.get('index')
     if index == None:
         return jsonify(error="index missing")
-    
+    # Convert epubs to text
     if filename.endswith("epub"):
         if os.path.exists("tmp") == False:
             os.makedirs("tmp")
         text.save("tmp/" + filename)
         text = convert_epub_to_text("tmp/" + filename)
         filename = filename.replace("epub", "txt")
-    
+    # Store file on S3
     s3_resource.Bucket('invisible-college-texts').put_object(Key=filename, Body=text)
+    # Check if job already running
+    old_job_ids = registry.get_job_ids()
+    if len(old_job_ids) > 0:
+        message = "Already processing file. Please wait a minute and try again."
+        return jsonify(error=message)
+    # Send to Background queue
     job = q.enqueue_call(func=index_text, args=(filename, index), timeout=1000, result_ttl=5000)
     return jsonify(id=job.id)
 
