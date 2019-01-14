@@ -37,6 +37,7 @@ from es import es_client
 def filename_to_title(filename):
     return filename.replace(".pdf", "").replace(".epub", "").replace(".txt", "").replace("_", " ").title()
 
+
 def ocr_pdf(pdf):
     if os.path.exists("tmp") == False:
         os.makedirs("tmp")
