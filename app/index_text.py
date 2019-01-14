@@ -7,6 +7,13 @@ import re
 
 from s3 import s3_client
 
+from pdf2image import convert_from_bytes
+try:
+    from PIL import Image
+except ImportError:
+    import Image
+import pytesseract
+
 from cStringIO import StringIO
 from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
 from pdfminer.converter import TextConverter
@@ -30,12 +37,38 @@ from es import es_client
 def filename_to_title(filename):
     return filename.replace(".pdf", "").replace(".epub", "").replace(".txt", "").replace("_", " ").title()
 
+def ocr_pdf(pdf):
+    try:
+        images = convert_from_bytes(pdf)
+        counter = 0
+        paths = []
+        
+        for image in images:
+            counter += 1
+            path = "tmp/" + str(counter) + ".jpg"
+            image.save(path)
+            paths.append(path)
+
+        text = ""
+        for page_number in range(0, page_number):
+            if page_number % 25 == 0:
+                print "\tprocessing", page_number
+            text += "\n\n<page>" + str(page_number) + "</page>\n\n"
+            text += pytesseract.image_to_string(Image.open(paths[page_number]))
+
+        return text
+    except Exception as error:
+        print error
+        raise
+
 def index_text(filename, index):
     try:
         obj = s3_client.get_object(Bucket='invisible-college-texts', Key=filename)
         text = obj['Body'].read()
+
         if filename.endswith("pdf"):
-            text = convert_pdf_to_text(text)
+            text = extract_text_from_pdf(text)
+            
         text = clean(text)
         texts = tokenize(text, index, filename_to_title(filename))
         helpers.bulk(es_client, texts, routing=1)
@@ -49,22 +82,33 @@ def index_text(filename, index):
 # File Conversion
 #
 
-def convert_pdf_to_text(stream, max_pages=2000):
+def extract_text_from_pdf(pdf, max_pages=2000):
     output = BytesIO()
     manager = PDFResourceManager()
     converter = TextConverter(manager, output, laparams=LAParams())
     interpreter = PDFPageInterpreter(manager, converter)
 
     text = ""
-    fp = StringIO(stream)
-    for page_number, page in enumerate(PDFPage.get_pages(fp)):
+    fp = StringIO(pdf)
+    needs_ocr = True
+
+    for page_number, page in enumerate(PDFPage.get_pages(fp)):        
         if page_number > max_pages:
             break
         if page_number % 25 == 0:
             print "\tprocessing", page_number
+        
         interpreter.process_page(page)
+        value = output.getvalue()
+
+        if len(value) > 100:
+            needs_ocr = False
+        if (page_number == 15) & needs_ocr:
+            return ocr_pdf(pdf)
+
         text += "\n\n<page>" + str(page_number) + "</page>\n\n"
         text += output.getvalue()
+
         output.truncate(0)
         output.seek(0)
 
