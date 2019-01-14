@@ -21,7 +21,7 @@ from s3 import s3_resource
 app = Flask(__name__)
 CORS(app)
 
-REDIS_URL = os.getenv('REDISTOGO_URL', 'http://localhost:6379')
+REDIS_URL = os.getenv('REDIS_URL', 'http://localhost:6379')
 redis_conn = Redis.from_url(REDIS_URL)
 
 q = Queue(connection=redis_conn)
