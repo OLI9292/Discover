@@ -52,7 +52,7 @@ def ocr_pdf(pdf):
             paths.append(path)
 
         text = ""
-        for page_number in range(0, page_number):
+        for page_number in range(0, len(paths)):
             if page_number % 25 == 0:
                 print "\tprocessing", page_number
             text += "\n\n<page>" + str(page_number) + "</page>\n\n"
@@ -106,7 +106,9 @@ def extract_text_from_pdf(pdf, max_pages=2000):
         if len(value) > 100:
             needs_ocr = False
         if (page_number == 15) & needs_ocr:
-            return ocr_pdf(pdf)
+            print "running ocr"
+            text = ocr_pdf(pdf)
+            break
 
         text += "\n\n<page>" + str(page_number) + "</page>\n\n"
         text += output.getvalue()
