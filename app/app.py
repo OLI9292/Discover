@@ -29,12 +29,16 @@ registry = StartedJobRegistry('default', connection=redis_conn)
 
 @app.route("/index-texts", methods=['GET', 'POST'])
 def index_texts():
-    print REDIS_URL
     text = request.files["text"]
     filename = text.filename
     index = request.args.get('index')
-    if index == None:
-        return jsonify(error="index missing")
+    is_rob = request.args.get('is_rob')
+
+    # Check if job already running
+    old_job_ids = registry.get_job_ids()
+    if len(old_job_ids) > 0:
+        message = "Already processing file. Please wait a minute and try again."
+        return jsonify(error=message)        
     # Convert epubs to text
     if filename.endswith("epub"):
         if os.path.exists("tmp") == False:
@@ -44,13 +48,9 @@ def index_texts():
         filename = filename.replace("epub", "txt")
     # Store file on S3
     s3_resource.Bucket('invisible-college-texts').put_object(Key=filename, Body=text)
-    # Check if job already running
-    old_job_ids = registry.get_job_ids()
-    if len(old_job_ids) > 0:
-        message = "Already processing file. Please wait a minute and try again."
-        return jsonify(error=message)
     # Send to Background queue
-    job = q.enqueue_call(func=index_text, args=(filename, index), timeout=1000, result_ttl=5000)
+    job = q.enqueue_call(func=index_text, args=(filename, index, is_rob), timeout=1000, result_ttl=5000)
+
     return jsonify(id=job.id)
 
 

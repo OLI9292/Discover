@@ -4,6 +4,9 @@ import io
 import uuid
 import inflect
 import re
+import urllib
+import json
+import time
 
 from s3 import s3_client
 
@@ -24,6 +27,7 @@ from pdfminer.layout import LAParams
 from pdfminer.pdfpage import PDFPage
 
 import chardet
+import requests
 
 import ebooklib
 from ebooklib import epub
@@ -31,15 +35,48 @@ from ebooklib import epub
 from nltk.tokenize import sent_tokenize
 
 from data.number_to_word_mapping import number_to_word_mapping
+from address import find_addresses_in_text
 
 from rq import get_current_job
 
 from elasticsearch import helpers
 from es import es_client
 
-def filename_to_title(filename):
-    return filename.replace(".pdf", "").replace(".epub", "").replace(".txt", "").replace("_", " ").title()
+API_URL = os.getenv('API_URL', "http://localhost:3002/graphql")
 
+def index_text(filename, index, is_rob):
+    try:
+        obj = s3_client.get_object(Bucket='invisible-college-texts', Key=filename)
+        text = obj['Body'].read()
+        
+        if filename.endswith("pdf"):
+            text = extract_text_from_pdf(text)
+        else:
+            text = decode(text)
+
+        text = clean(text)
+        texts = tokenize(text, index, filename_to_title(filename))
+        helpers.bulk(es_client, texts, routing=1)
+        
+        # mccully
+        if is_rob:
+            time.sleep(2)
+            _id = texts[0]["_id"]
+            beg = 'mutation { findAddresses(addresses: "'
+            data = find_addresses_in_text(index, _id)
+            end = '", index: "' + index + '", id: "' + _id + '") }'
+            body = { "query" : beg + urllib.quote(json.dumps(data)) + end }
+            requests.post(API_URL, json=body)
+        
+        return
+    except Exception as error:
+        job = get_current_job()
+        job.meta['error'] = job.meta.get('error') or error.message
+        job.save_meta()
+        return
+
+## OCR
+#
 
 def ocr_pdf(pdf):
     if os.path.exists("tmp") == False:
@@ -66,26 +103,6 @@ def ocr_pdf(pdf):
     except Exception as error:
         print error
         raise
-
-def index_text(filename, index):
-    try:
-        obj = s3_client.get_object(Bucket='invisible-college-texts', Key=filename)
-        text = obj['Body'].read()
-        
-        if filename.endswith("pdf"):
-            text = extract_text_from_pdf(text)
-        else:
-            text = decode(text)
-
-        text = clean(text)
-        texts = tokenize(text, index, filename_to_title(filename))
-        helpers.bulk(es_client, texts, routing=1)
-        return
-    except Exception as error:
-        job = get_current_job()
-        job.meta['error'] = job.meta.get('error') or error.message
-        job.save_meta()
-        return
 
 # File Conversion
 #
@@ -124,7 +141,7 @@ def extract_text_from_pdf(pdf, max_pages=2000):
     fp.close()
     converter.close()
     output.close()
-    return text
+    return decode(text)
 
 
 def convert_epub_to_text(path):
@@ -139,6 +156,11 @@ def convert_epub_to_text(path):
 # Data cleaning
 #
 
+def filename_to_title(filename):
+    remove_strings = [".pdf", ".epub", ".txt", "[", "]", "(b-ok.org)"]
+    for s in remove_strings:
+        filename = filename.replace(s, "")
+    return filename.replace("_", " ").strip().title()
 
 def normalize_cardinals(data):
     keys = number_to_word_mapping.keys()
