@@ -141,7 +141,7 @@ def extract_text_from_pdf(pdf, max_pages=2000):
     fp.close()
     converter.close()
     output.close()
-    return decode(text)
+    return text if needs_ocr else decode(text)
 
 
 def convert_epub_to_text(path):
