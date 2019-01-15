@@ -49,7 +49,7 @@ def index_texts():
     # Store file on S3
     s3_resource.Bucket('invisible-college-texts').put_object(Key=filename, Body=text)
     # Send to Background queue
-    job = q.enqueue_call(func=index_text, args=(filename, index, is_rob), timeout=1000, result_ttl=5000)
+    job = q.enqueue_call(func=index_text, args=(filename, index, is_rob), timeout=3000, result_ttl=5000)
 
     return jsonify(id=job.id)
 
