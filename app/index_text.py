@@ -44,6 +44,14 @@ from es import es_client
 
 API_URL = os.getenv('API_URL', "http://localhost:3002/graphql")
 
+def add_to_current_job(key, message, override=True):
+    job = get_current_job()
+    if override:
+        job.meta[key] = message
+    else:
+        job.meta[key] = job.meta.get(key) or message
+    job.save_meta()
+
 def index_text(filename, index, is_rob):
     try:
         obj = s3_client.get_object(Bucket='invisible-college-texts', Key=filename)
@@ -56,9 +64,9 @@ def index_text(filename, index, is_rob):
 
         text = clean(text)
         texts = tokenize(text, index, filename_to_title(filename))
+
         helpers.bulk(es_client, texts, routing=1)
         
-        # mccully
         if is_rob:
             time.sleep(2)
             _id = texts[0]["_id"]
@@ -70,9 +78,7 @@ def index_text(filename, index, is_rob):
         
         return
     except Exception as error:
-        job = get_current_job()
-        job.meta['error'] = job.meta.get('error') or error.message
-        job.save_meta()
+        add_to_current_job('error', error.message)
         return
 
 ## OCR
@@ -93,11 +99,12 @@ def ocr_pdf(pdf):
             paths.append(path)
 
         text = ""
-        for page_number in range(0, len(paths)):
+        for page_number, path in enumerate(paths):
+            add_to_current_job('progress', page_number / float(len(paths)), True)
             if (page_number % 5 == 0) & (page_number > 0):
                 print "\tprocessing", page_number
             text += "\n\n<page>" + str(page_number) + "</page>\n\n"
-            text += pytesseract.image_to_string(Image.open(paths[page_number]))
+            text += pytesseract.image_to_string(Image.open(path))
 
         return text
     except Exception as error:
@@ -117,7 +124,9 @@ def extract_text_from_pdf(pdf, max_pages=2000):
     fp = StringIO(pdf)
     needs_ocr = True
 
-    for page_number, page in enumerate(PDFPage.get_pages(fp)):        
+    page_count = len(list(PDFPage.get_pages(fp)))
+    for page_number, page in enumerate(PDFPage.get_pages(fp)):
+        add_to_current_job('progress', float(page_number) / float(page_count), True)        
         if page_number > max_pages:
             break
         if (page_number % 25 == 0) & (page_number > 0):
@@ -147,7 +156,8 @@ def extract_text_from_pdf(pdf, max_pages=2000):
 def convert_epub_to_text(path):
     book = epub.read_epub(path)
     html = ""
-    for item in book.get_items():
+    items = book.get_items()
+    for page_number, item in enumerate(items):
         if item.get_type() == ebooklib.ITEM_DOCUMENT:
             html += item.get_content()
     text = re.sub('<[^<]+?>', '', html)
@@ -268,9 +278,7 @@ def decode(text):
         encoding = chardet.detect(text)["encoding"]
         return text.decode(encoding)
     except Exception as error:
-        job = get_current_job()
-        job.meta['error'] = "Could not decode file."
-        job.save_meta()
+        add_to_current_job('error', "Could not decode file.")
         raise
 
 def clean(text):
@@ -298,9 +306,7 @@ def tokenize(text, index, title):
     chunked = chunks(content, 20)
     _id = str(uuid.uuid4())
 
-    job = get_current_job()
-    job.meta['es_id'] = _id
-    job.save_meta()
+    add_to_current_job('es_id', _id)
 
     passages = [] 
     word_count = 0

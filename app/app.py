@@ -63,7 +63,8 @@ def get_status(task_id):
                 'job_id': job.get_id(),
                 'status': job.get_status(),
                 'es_id': job.meta.get('es_id'),
-                'error': job.meta.get('error')
+                'error': job.meta.get('error'),
+                'progress': job.meta.get('progress')
             }
         })    
     return jsonify(error="not found")
