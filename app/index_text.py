@@ -13,7 +13,11 @@ try:
 except ImportError:
     import Image
 import pytesseract
-pytesseract.pytesseract.tesseract_cmd = '/app/.apt/usr/bin/tesseract'
+
+if os.getenv('IS_HEROKU'):
+    print "pytesseract apt"
+    pytesseract.pytesseract.tesseract_cmd = '/app/.apt/usr/bin/tesseract'
+
 
 from cStringIO import StringIO
 from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
@@ -58,8 +62,10 @@ def ocr_pdf(pdf):
             print "\tprocessing", page_number
             text += "\n\n<page>" + str(page_number) + "</page>\n\n"
             img = Image.open(paths[page_number])
-            text += pytesseract.image_to_string(img)
-        print "done"
+            s = pytesseract.image_to_string(img)
+            print len(s)
+            text += s
+
         return text
     except Exception as error:
         print error
@@ -73,7 +79,7 @@ def index_text(filename, index):
 
         if filename.endswith("pdf"):
             text = extract_text_from_pdf(text)
-            print text[0:1000]
+            print len(text)
             
         text = clean(text)
         texts = tokenize(text, index, filename_to_title(filename))
@@ -110,10 +116,7 @@ def extract_text_from_pdf(pdf, max_pages=2000):
         if len(value) > 100:
             needs_ocr = False
         if (page_number == 15) & needs_ocr:
-            print "running ocr"
             text = ocr_pdf(pdf)
-            print "printing"
-            print text[0:100]
             break
 
         text += "\n\n<page>" + str(page_number) + "</page>\n\n"
