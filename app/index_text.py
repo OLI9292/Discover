@@ -15,9 +15,7 @@ except ImportError:
 import pytesseract
 
 if os.getenv('IS_HEROKU'):
-    print "pytesseract apt"
     pytesseract.pytesseract.tesseract_cmd = '/app/.apt/usr/bin/tesseract'
-
 
 from cStringIO import StringIO
 from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
@@ -58,13 +56,11 @@ def ocr_pdf(pdf):
             paths.append(path)
 
         text = ""
-        for page_number in range(0, 3):
-            print "\tprocessing", page_number
+        for page_number in range(0, len(paths)):
+            if (page_number % 5 == 0) & (page_number > 0):
+                print "\tprocessing", page_number
             text += "\n\n<page>" + str(page_number) + "</page>\n\n"
-            img = Image.open(paths[page_number])
-            s = pytesseract.image_to_string(img)
-            print len(s)
-            text += s
+            text += pytesseract.image_to_string(Image.open(paths[page_number]))
 
         return text
     except Exception as error:
@@ -72,15 +68,15 @@ def ocr_pdf(pdf):
         raise
 
 def index_text(filename, index):
-    print "received job"
     try:
         obj = s3_client.get_object(Bucket='invisible-college-texts', Key=filename)
         text = obj['Body'].read()
-
+        
         if filename.endswith("pdf"):
             text = extract_text_from_pdf(text)
-            print len(text)
-            
+        else:
+            text = decode(text)
+
         text = clean(text)
         texts = tokenize(text, index, filename_to_title(filename))
         helpers.bulk(es_client, texts, routing=1)
@@ -107,7 +103,7 @@ def extract_text_from_pdf(pdf, max_pages=2000):
     for page_number, page in enumerate(PDFPage.get_pages(fp)):        
         if page_number > max_pages:
             break
-        if page_number % 25 == 0:
+        if (page_number % 25 == 0) & (page_number > 0):
             print "\tprocessing", page_number
         
         interpreter.process_page(page)
@@ -256,13 +252,13 @@ def decode(text):
         raise
 
 def clean(text):
-    text = decode(text)
     text = text.replace("-", " ")
     text = remove_multiple_spaces(text)
     text = attach_overrun_words(text)
     text = attach_paragraph(text)
     text = normalize_cardinals(text)
-    return cut_off_index(text)
+    text = cut_off_index(text)
+    return text
 
 # Format for ElasticSearch
 #
