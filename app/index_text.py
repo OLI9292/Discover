@@ -126,7 +126,7 @@ def extract_text_from_pdf(pdf, max_pages=2000):
 
     page_count = len(list(PDFPage.get_pages(fp)))
     for page_number, page in enumerate(PDFPage.get_pages(fp)):
-        add_to_current_job('progress', float(page_number) / float(page_count), True)        
+        
         if page_number > max_pages:
             break
         if (page_number % 25 == 0) & (page_number > 0):
@@ -140,6 +140,8 @@ def extract_text_from_pdf(pdf, max_pages=2000):
         if (page_number == 15) & needs_ocr:
             text = ocr_pdf(pdf)
             break
+        if page_number > 15:
+            add_to_current_job('progress', float(page_number) / float(page_count), True)
 
         text += "\n\n<page>" + str(page_number) + "</page>\n\n"
         text += output.getvalue()
