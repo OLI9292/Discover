@@ -56,7 +56,11 @@ def ocr_pdf(pdf):
         for page_number in range(0, len(paths)):
             print "\tprocessing", page_number
             text += "\n\n<page>" + str(page_number) + "</page>\n\n"
-            text += pytesseract.image_to_string(Image.open(paths[page_number]))
+            print 1
+            img = Image.open(paths[page_number])
+            print 2
+            text += pytesseract.image_to_string(img)
+            print 3
 
         return text
     except Exception as error:
