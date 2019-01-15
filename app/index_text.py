@@ -126,7 +126,6 @@ def extract_text_from_pdf(pdf, max_pages=2000):
 
     page_count = len(list(PDFPage.get_pages(fp)))
     for page_number, page in enumerate(PDFPage.get_pages(fp)):
-        
         if page_number > max_pages:
             break
         if (page_number % 25 == 0) & (page_number > 0):
