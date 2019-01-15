@@ -59,7 +59,7 @@ def ocr_pdf(pdf):
             text += "\n\n<page>" + str(page_number) + "</page>\n\n"
             img = Image.open(paths[page_number])
             text += pytesseract.image_to_string(img)
-
+        print "done"
         return text
     except Exception as error:
         print error
@@ -112,6 +112,8 @@ def extract_text_from_pdf(pdf, max_pages=2000):
         if (page_number == 15) & needs_ocr:
             print "running ocr"
             text = ocr_pdf(pdf)
+            print "printing"
+            print text[0:100]
             break
 
         text += "\n\n<page>" + str(page_number) + "</page>\n\n"
