@@ -29,6 +29,7 @@ registry = StartedJobRegistry('default', connection=redis_conn)
 
 @app.route("/index-texts", methods=['GET', 'POST'])
 def index_texts():
+    print REDIS_URL
     text = request.files["text"]
     filename = text.filename
     index = request.args.get('index')
@@ -45,6 +46,7 @@ def index_texts():
     s3_resource.Bucket('invisible-college-texts').put_object(Key=filename, Body=text)
     # Check if job already running
     old_job_ids = registry.get_job_ids()
+    print old_job_ids
     if len(old_job_ids) > 0:
         message = "Already processing file. Please wait a minute and try again."
         return jsonify(error=message)

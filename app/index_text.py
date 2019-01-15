@@ -64,6 +64,7 @@ def ocr_pdf(pdf):
         raise
 
 def index_text(filename, index):
+    print "received job"
     try:
         obj = s3_client.get_object(Bucket='invisible-college-texts', Key=filename)
         text = obj['Body'].read()
