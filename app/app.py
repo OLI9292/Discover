@@ -33,7 +33,6 @@ def index_texts():
     filename = text.filename
     index = request.args.get('index')
     is_rob = request.args.get('is_rob')
-
     # Check if job already running
     old_job_ids = registry.get_job_ids()
     if len(old_job_ids) > 0:
@@ -49,7 +48,7 @@ def index_texts():
     # Store file on S3
     s3_resource.Bucket('invisible-college-texts').put_object(Key=filename, Body=text)
     # Send to Background queue
-    job = q.enqueue_call(func=index_text, args=(filename, index, is_rob), timeout=3000, result_ttl=5000)
+    job = q.enqueue_call(func=index_text, args=(filename, index, is_rob), timeout=6000, result_ttl=5000)
 
     return jsonify(id=job.id)
 

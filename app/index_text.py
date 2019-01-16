@@ -61,7 +61,6 @@ def index_text(filename, index, is_rob):
             text = extract_text_from_pdf(text)
         else:
             text = decode(text)
-
         text = clean(text)
         texts = tokenize(text, index, filename_to_title(filename))
 
