@@ -56,17 +56,19 @@ def add_to_current_job(key, message, override=True):
 
 def index_text(filename, index, is_rob):
     try:
+        print "fetching file from s3"
         obj = s3_client.get_object(Bucket='invisible-college-texts', Key=filename)
         text = obj['Body'].read()
         
         if filename.endswith("pdf"):
+            print "extracting text from pdf"
             text = extract_text_from_pdf(text)
         else:
             text = decode(text)
 
         text = clean(text)
         texts = tokenize(text, index, filename_to_title(filename))
-
+        print "indexing documents in elasticsearch"
         helpers.bulk(es_client, texts, routing=1)
         
         if is_rob:
@@ -94,11 +96,14 @@ def ocr_pdf(pdf):
     if os.path.exists("tmp") == False:
         os.makedirs("tmp")
     try:
+        print "converting pdf to images"
         images = convert_from_bytes(pdf)
         counter = 0
         paths = []
         
         for image in images:
+            if counter % 25 == 0:
+                print "\tconverting", counter
             counter += 1
             path = "tmp/" + str(counter) + ".jpg"
             image.save(path)
