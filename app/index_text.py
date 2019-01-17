@@ -54,15 +54,13 @@ def add_to_current_job(key, message, override=True):
         job.meta[key] = message
     else:
         job.meta[key] = job.meta.get(key) or message
-    job.save_meta()
+    job.save_meta() 
 
 def index_text(filename, index, is_rob):
     try:
         print "fetching file from s3"
         obj = s3_client.get_object(Bucket='invisible-college-texts', Key=filename)
-        #text = obj['Body'].read()
-        ocr_pdf(obj['Body'].read())
-        return
+        text = obj['Body'].read()
         
         if filename.endswith("pdf"):
             print "extracting text from pdf"
@@ -71,9 +69,12 @@ def index_text(filename, index, is_rob):
             text = decode(text)
 
         text = clean(text)
+        add_to_current_job('progress', 0.925)
         texts = tokenize(text, index, filename_to_title(filename))
+        add_to_current_job('progress', 0.95)
         print "indexing documents in elasticsearch"
         helpers.bulk(es_client, texts, routing=1)
+        add_to_current_job('progress', 0.975)
         
         if is_rob:
             time.sleep(2)
@@ -93,8 +94,13 @@ def index_text(filename, index, is_rob):
 #
 
 def ocr(path):
-    page_number = path.replace("tmp/","").replace(".jpg","")
+    page_number = path.replace("tmp/", "").replace(".jpg","")
     return [page_number, pytesseract.image_to_string(Image.open(path))]
+
+def pdf_to_image(path):
+    page = float(path.replace(".pdf","").replace("tmp/",""))
+    image = convert_from_path(path)[0]   
+    return image.save(path.replace(".pdf", ".jpg"))
 
 def ocr_pdf(pdf):
     if os.path.exists("tmp") == False:
@@ -103,13 +109,18 @@ def ocr_pdf(pdf):
         path = "tmp/pdf.jpg"
         with open(path, "wb") as outputStream:
             outputStream.write(pdf)
-            
+
         print "splitting pdf"
+        add_to_current_job('progress', 0.05)
         counter = 0
         paths = []
         inputpdf = PdfFileReader(open(path, "rb"))
-        for i in range(inputpdf.numPages):
+        pages_count = inputpdf.numPages
+        for i in range(pages_count):
             counter += 1
+            progress = max(0.1, (0.15 * float(counter) / float(pages_count)))
+            add_to_current_job('progress', progress)
+
             output = PdfFileWriter()
             output.addPage(inputpdf.getPage(i))
             path = "tmp/" + str(counter) + ".pdf"
@@ -118,22 +129,23 @@ def ocr_pdf(pdf):
                 output.write(outputStream)
         
         print "converting pdf to images"
-        counter = 0
-        for idx in range(0, len(paths)):
-            counter += 1
-            image = convert_from_path(paths[idx])[0]
-            path = "tmp/" + str(counter) + ".jpg"
-            image.save(path)
-            paths[idx] = paths[idx].replace(".pdf", ".jpg")
+        with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
+            jobs = [executor.submit(pdf_to_image, path) for path in paths]
+            counter = 0
+            for out in as_completed(jobs):
+                counter += 1
+                progress = max(0.1, (0.35 * float(counter) / float(pages_count)))
+                add_to_current_job('progress', progress)
 
         print "running ocr on images"
         text = ""
         with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
-            jobs = [executor.submit(ocr, path) for path in paths]
+            jobs = [executor.submit(ocr, path.replace("pdf", "jpg")) for path in paths]
             counter = 0
             for out in as_completed(jobs):
                 counter += 1
-                add_to_current_job('progress', float(counter) / float(len(paths)), True)
+                progress = max(0.3, 0.9 * float(counter) / float(len(paths)))
+                add_to_current_job('progress', progress)
                 [page_number, text_result] = out.result()
                 text += "\n\n<page>" + page_number + "</page>\n\n"
                 text += text_result
@@ -172,7 +184,7 @@ def extract_text_from_pdf(pdf, max_pages=2000):
             text = ocr_pdf(pdf)
             break
         if page_number > 15:
-            add_to_current_job('progress', float(page_number) / float(page_count), True)
+            add_to_current_job('progress', float(page_number) / float(page_count))
 
         text += "\n\n<page>" + str(page_number) + "</page>\n\n"
         text += output.getvalue()

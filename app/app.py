@@ -34,6 +34,7 @@ def index_texts():
     index = request.args.get('index')
     is_rob = request.args.get('is_rob')
     # Check if job already running
+    # redis_conn.flushall()
     old_job_ids = registry.get_job_ids()
     if len(old_job_ids) > 0:
         message = "Already processing file. Please wait a minute and try again."
