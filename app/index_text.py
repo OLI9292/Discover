@@ -61,7 +61,7 @@ def index_text(filename, index, is_rob):
         print "fetching file from s3"
         obj = s3_client.get_object(Bucket='invisible-college-texts', Key=filename)
         text = obj['Body'].read()
-        
+
         if filename.endswith("pdf"):
             print "extracting text from pdf"
             text = extract_text_from_pdf(text)
@@ -144,7 +144,7 @@ def ocr_pdf(pdf):
             counter = 0
             for out in as_completed(jobs):
                 counter += 1
-                progress = max(0.3, 0.9 * float(counter) / float(len(paths)))
+                progress = max(0.3, 0.3 + (0.6 * float(counter) / float(len(paths))))
                 add_to_current_job('progress', progress)
                 [page_number, text_result] = out.result()
                 text += "\n\n<page>" + page_number + "</page>\n\n"
