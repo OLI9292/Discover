@@ -7,6 +7,8 @@ import re
 import urllib
 import json
 import time
+import concurrent.futures
+from concurrent.futures import as_completed
 
 from s3 import s3_client
 
@@ -61,6 +63,7 @@ def index_text(filename, index, is_rob):
             text = extract_text_from_pdf(text)
         else:
             text = decode(text)
+
         text = clean(text)
         texts = tokenize(text, index, filename_to_title(filename))
 
@@ -83,6 +86,10 @@ def index_text(filename, index, is_rob):
 ## OCR
 #
 
+def ocr(path):
+    page_number = path.replace("tmp/","").replace(".jpg","")
+    return [page_number, pytesseract.image_to_string(Image.open(path))]
+
 def ocr_pdf(pdf):
     if os.path.exists("tmp") == False:
         os.makedirs("tmp")
@@ -98,12 +105,16 @@ def ocr_pdf(pdf):
             paths.append(path)
 
         text = ""
-        for page_number, path in enumerate(paths):
-            add_to_current_job('progress', page_number / float(len(paths)), True)
-            if (page_number % 5 == 0) & (page_number > 0):
-                print "\tprocessing", page_number
-            text += "\n\n<page>" + str(page_number) + "</page>\n\n"
-            text += pytesseract.image_to_string(Image.open(path))
+
+        with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
+            jobs = [executor.submit(ocr, path) for path in paths]
+            counter = 0
+            for out in as_completed(jobs):
+                counter += 1
+                add_to_current_job('progress', float(counter) / float(len(paths)), True)
+                [page_number, text_result] = out.result()
+                text += "\n\n<page>" + page_number + "</page>\n\n"
+                text += text_result
 
         return text
     except Exception as error:
