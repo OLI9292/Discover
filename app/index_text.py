@@ -12,7 +12,7 @@ from concurrent.futures import as_completed
 
 from s3 import s3_client
 
-from pdf2image import convert_from_bytes
+from pdf2image import convert_from_path
 try:
     from PIL import Image
 except ImportError:
@@ -27,6 +27,8 @@ from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
 from pdfminer.converter import TextConverter
 from pdfminer.layout import LAParams
 from pdfminer.pdfpage import PDFPage
+
+from PyPDF2 import PdfFileWriter, PdfFileReader
 
 import chardet
 import requests
@@ -58,7 +60,9 @@ def index_text(filename, index, is_rob):
     try:
         print "fetching file from s3"
         obj = s3_client.get_object(Bucket='invisible-college-texts', Key=filename)
-        text = obj['Body'].read()
+        #text = obj['Body'].read()
+        ocr_pdf(obj['Body'].read())
+        return
         
         if filename.endswith("pdf"):
             print "extracting text from pdf"
@@ -96,21 +100,34 @@ def ocr_pdf(pdf):
     if os.path.exists("tmp") == False:
         os.makedirs("tmp")
     try:
-        print "converting pdf to images"
-        images = convert_from_bytes(pdf)
+        path = "tmp/pdf.jpg"
+        with open(path, "wb") as outputStream:
+            outputStream.write(pdf)
+            
+        print "splitting pdf"
         counter = 0
         paths = []
-        
-        for image in images:
-            if counter % 25 == 0:
-                print "\tconverting", counter
+        inputpdf = PdfFileReader(open(path, "rb"))
+        for i in range(inputpdf.numPages):
             counter += 1
+            output = PdfFileWriter()
+            output.addPage(inputpdf.getPage(i))
+            path = "tmp/" + str(counter) + ".pdf"
+            paths.append(path)
+            with open(path, "wb") as outputStream:
+                output.write(outputStream)
+        
+        print "converting pdf to images"
+        counter = 0
+        for idx in range(0, len(paths)):
+            counter += 1
+            image = convert_from_path(paths[idx])[0]
             path = "tmp/" + str(counter) + ".jpg"
             image.save(path)
-            paths.append(path)
+            paths[idx] = paths[idx].replace(".pdf", ".jpg")
 
+        print "running ocr on images"
         text = ""
-
         with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
             jobs = [executor.submit(ocr, path) for path in paths]
             counter = 0
