@@ -21,7 +21,6 @@ stop_words = [
     "school",
     "college",
     "university",
-    "new york",
     "market",
     "train",
     "church",

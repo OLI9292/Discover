@@ -89,7 +89,6 @@ def find_page_number(hits, idx):
 def find_addresses_in_text(index, _id, size=1000):
     query = {"query": {"parent_id": {"type": "passage", "id": _id}}}
     hits = es_client.search(index=index, body=query, size=size)
-
     hits = hits["hits"]["hits"]
     all_addresses = []
 
