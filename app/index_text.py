@@ -69,15 +69,15 @@ def index_text(filename, index, is_rob):
             text = decode(text)
 
         text = clean(text)
-        add_to_current_job('progress', 0.925)
         texts = tokenize(text, index, filename_to_title(filename))
-        add_to_current_job('progress', 0.95)
+        add_to_current_job('progress', 0.925)
         print "indexing documents in elasticsearch"
         helpers.bulk(es_client, texts, routing=1)
-        add_to_current_job('progress', 0.975)
+        add_to_current_job('progress', 0.95)
         
         if is_rob:
-            time.sleep(2)
+            time.sleep(7)
+            add_to_current_job('progress', 0.975)
             _id = texts[0]["_id"]
             beg = 'mutation { findAddresses(addresses: "'
             data = find_addresses_in_text(index, _id)
@@ -134,7 +134,7 @@ def ocr_pdf(pdf):
             counter = 0
             for out in as_completed(jobs):
                 counter += 1
-                progress = max(0.1, (0.35 * float(counter) / float(pages_count)))
+                progress = max(0.1, 0.1 + (0.35 * float(counter) / float(pages_count)))
                 add_to_current_job('progress', progress)
 
         print "running ocr on images"

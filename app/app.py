@@ -80,13 +80,6 @@ def lemmatizations():
     except Exception as error:
         return jsonify(error=error)
 
-
-@app.route("/find-addresses", methods=['GET', 'POST'])
-def find_addresses():
-    data = find_addresses_in_text(request.args.get("index"), request.args.get("id"))
-    return jsonify(addresses=data)
-
-
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', debug=False, port=port)
