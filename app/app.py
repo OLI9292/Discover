@@ -18,6 +18,8 @@ from redis import Redis
 
 from s3 import s3_resource
 
+from nltk import pos_tag, word_tokenize
+
 app = Flask(__name__)
 CORS(app)
 
@@ -33,8 +35,8 @@ def index_texts():
     filename = text.filename
     index = request.args.get('index')
     is_rob = request.args.get('is_rob')
-
     # Check if job already running
+    # redis_conn.flushall()
     old_job_ids = registry.get_job_ids()
     if len(old_job_ids) > 0:
         message = "Already processing file. Please wait a minute and try again."
@@ -49,7 +51,7 @@ def index_texts():
     # Store file on S3
     s3_resource.Bucket('invisible-college-texts').put_object(Key=filename, Body=text)
     # Send to Background queue
-    job = q.enqueue_call(func=index_text, args=(filename, index, is_rob), timeout=1000, result_ttl=5000)
+    job = q.enqueue_call(func=index_text, args=(filename, index, is_rob), timeout=6000, result_ttl=5000)
 
     return jsonify(id=job.id)
 
@@ -63,7 +65,8 @@ def get_status(task_id):
                 'job_id': job.get_id(),
                 'status': job.get_status(),
                 'es_id': job.meta.get('es_id'),
-                'error': job.meta.get('error')
+                'error': job.meta.get('error'),
+                'progress': job.meta.get('progress')
             }
         })    
     return jsonify(error="not found")
@@ -80,11 +83,15 @@ def lemmatizations():
         return jsonify(error=error)
 
 
-@app.route("/find-addresses", methods=['GET', 'POST'])
-def find_addresses():
-    data = find_addresses_in_text(request.args.get("index"), request.args.get("id"))
-    return jsonify(addresses=data)
-
+@app.route("/tag-pos")
+def tag_pos():
+    try:
+        sentence = request.args.get('sentence')
+        tagged = pos_tag(word_tokenize(sentence))
+        tagged = [{"value": t[0], "tag": t[1]} for t in tagged]
+        return jsonify(tagged=tagged)
+    except Exception as error:
+        return jsonify(error=error)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))

@@ -7,10 +7,12 @@ import re
 import urllib
 import json
 import time
+import concurrent.futures
+from concurrent.futures import as_completed
 
 from s3 import s3_client
 
-from pdf2image import convert_from_bytes
+from pdf2image import convert_from_path
 try:
     from PIL import Image
 except ImportError:
@@ -25,6 +27,8 @@ from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
 from pdfminer.converter import TextConverter
 from pdfminer.layout import LAParams
 from pdfminer.pdfpage import PDFPage
+
+from PyPDF2 import PdfFileWriter, PdfFileReader
 
 import chardet
 import requests
@@ -44,23 +48,36 @@ from es import es_client
 
 API_URL = os.getenv('API_URL', "http://localhost:3002/graphql")
 
+def add_to_current_job(key, message, override=True):
+    job = get_current_job()
+    if override:
+        job.meta[key] = message
+    else:
+        job.meta[key] = job.meta.get(key) or message
+    job.save_meta() 
+
 def index_text(filename, index, is_rob):
     try:
+        print "fetching file from s3"
         obj = s3_client.get_object(Bucket='invisible-college-texts', Key=filename)
         text = obj['Body'].read()
-        
+
         if filename.endswith("pdf"):
+            print "extracting text from pdf"
             text = extract_text_from_pdf(text)
         else:
             text = decode(text)
 
         text = clean(text)
         texts = tokenize(text, index, filename_to_title(filename))
+        add_to_current_job('progress', 0.925)
+        print "indexing documents in elasticsearch"
         helpers.bulk(es_client, texts, routing=1)
+        add_to_current_job('progress', 0.95)
         
-        # mccully
         if is_rob:
-            time.sleep(2)
+            time.sleep(7)
+            add_to_current_job('progress', 0.975)
             _id = texts[0]["_id"]
             beg = 'mutation { findAddresses(addresses: "'
             data = find_addresses_in_text(index, _id)
@@ -70,34 +87,68 @@ def index_text(filename, index, is_rob):
         
         return
     except Exception as error:
-        job = get_current_job()
-        job.meta['error'] = job.meta.get('error') or error.message
-        job.save_meta()
+        add_to_current_job('error', error.message)
         return
 
 ## OCR
 #
 
+def ocr(path):
+    page_number = path.replace("tmp/", "").replace(".jpg","")
+    return [page_number, pytesseract.image_to_string(Image.open(path))]
+
+def pdf_to_image(path):
+    page = float(path.replace(".pdf","").replace("tmp/",""))
+    image = convert_from_path(path)[0]   
+    return image.save(path.replace(".pdf", ".jpg"))
+
 def ocr_pdf(pdf):
     if os.path.exists("tmp") == False:
         os.makedirs("tmp")
     try:
-        images = convert_from_bytes(pdf)
+        path = "tmp/pdf.jpg"
+        with open(path, "wb") as outputStream:
+            outputStream.write(pdf)
+
+        print "splitting pdf"
+        add_to_current_job('progress', 0.05)
         counter = 0
         paths = []
-        
-        for image in images:
+        inputpdf = PdfFileReader(open(path, "rb"))
+        pages_count = inputpdf.numPages
+        for i in range(pages_count):
             counter += 1
-            path = "tmp/" + str(counter) + ".jpg"
-            image.save(path)
-            paths.append(path)
+            progress = max(0.1, (0.15 * float(counter) / float(pages_count)))
+            add_to_current_job('progress', progress)
 
+            output = PdfFileWriter()
+            output.addPage(inputpdf.getPage(i))
+            path = "tmp/" + str(counter) + ".pdf"
+            paths.append(path)
+            with open(path, "wb") as outputStream:
+                output.write(outputStream)
+        
+        print "converting pdf to images"
+        with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
+            jobs = [executor.submit(pdf_to_image, path) for path in paths]
+            counter = 0
+            for out in as_completed(jobs):
+                counter += 1
+                progress = max(0.1, 0.1 + (0.35 * float(counter) / float(pages_count)))
+                add_to_current_job('progress', progress)
+
+        print "running ocr on images"
         text = ""
-        for page_number in range(0, len(paths)):
-            if (page_number % 5 == 0) & (page_number > 0):
-                print "\tprocessing", page_number
-            text += "\n\n<page>" + str(page_number) + "</page>\n\n"
-            text += pytesseract.image_to_string(Image.open(paths[page_number]))
+        with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
+            jobs = [executor.submit(ocr, path.replace("pdf", "jpg")) for path in paths]
+            counter = 0
+            for out in as_completed(jobs):
+                counter += 1
+                progress = max(0.3, 0.3 + (0.6 * float(counter) / float(len(paths))))
+                add_to_current_job('progress', progress)
+                [page_number, text_result] = out.result()
+                text += "\n\n<page>" + page_number + "</page>\n\n"
+                text += text_result
 
         return text
     except Exception as error:
@@ -117,7 +168,8 @@ def extract_text_from_pdf(pdf, max_pages=2000):
     fp = StringIO(pdf)
     needs_ocr = True
 
-    for page_number, page in enumerate(PDFPage.get_pages(fp)):        
+    page_count = len(list(PDFPage.get_pages(fp)))
+    for page_number, page in enumerate(PDFPage.get_pages(fp)):
         if page_number > max_pages:
             break
         if (page_number % 25 == 0) & (page_number > 0):
@@ -131,6 +183,8 @@ def extract_text_from_pdf(pdf, max_pages=2000):
         if (page_number == 15) & needs_ocr:
             text = ocr_pdf(pdf)
             break
+        if page_number > 15:
+            add_to_current_job('progress', float(page_number) / float(page_count))
 
         text += "\n\n<page>" + str(page_number) + "</page>\n\n"
         text += output.getvalue()
@@ -141,13 +195,14 @@ def extract_text_from_pdf(pdf, max_pages=2000):
     fp.close()
     converter.close()
     output.close()
-    return decode(text)
+    return text if needs_ocr else decode(text)
 
 
 def convert_epub_to_text(path):
     book = epub.read_epub(path)
     html = ""
-    for item in book.get_items():
+    items = book.get_items()
+    for page_number, item in enumerate(items):
         if item.get_type() == ebooklib.ITEM_DOCUMENT:
             html += item.get_content()
     text = re.sub('<[^<]+?>', '', html)
@@ -268,9 +323,7 @@ def decode(text):
         encoding = chardet.detect(text)["encoding"]
         return text.decode(encoding)
     except Exception as error:
-        job = get_current_job()
-        job.meta['error'] = "Could not decode file."
-        job.save_meta()
+        add_to_current_job('error', "Could not decode file.")
         raise
 
 def clean(text):
@@ -298,9 +351,7 @@ def tokenize(text, index, title):
     chunked = chunks(content, 20)
     _id = str(uuid.uuid4())
 
-    job = get_current_job()
-    job.meta['es_id'] = _id
-    job.save_meta()
+    add_to_current_job('es_id', _id)
 
     passages = [] 
     word_count = 0
