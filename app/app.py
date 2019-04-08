@@ -18,6 +18,8 @@ from redis import Redis
 
 from s3 import s3_resource
 
+from nltk import pos_tag, word_tokenize
+
 app = Flask(__name__)
 CORS(app)
 
@@ -77,6 +79,17 @@ def lemmatizations():
         lemmas = get_lemmas(word)
         lcd = lcd_for_word(word, lemmas)
         return jsonify(lemmas=lemmas, lcd=lcd)
+    except Exception as error:
+        return jsonify(error=error)
+
+
+@app.route("/tag-pos")
+def tag_pos():
+    try:
+        sentence = request.args.get('sentence')
+        tagged = pos_tag(word_tokenize(sentence))
+        tagged = [{"value": t[0], "tag": t[1]} for t in tagged]
+        return jsonify(tagged=tagged)
     except Exception as error:
         return jsonify(error=error)
 
