@@ -1,9 +1,5 @@
-import time
-import pprint
 import json
 import requests
-
-pp = pprint.PrettyPrinter(indent=1)
 
 API_URL = 'https://commons.wikimedia.org/w/api.php'
 
