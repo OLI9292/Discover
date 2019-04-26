@@ -12,6 +12,8 @@ from lemmatization import get_lemmas, lcd_for_word
 from address import find_addresses_in_text
 from index_text import index_text, convert_epub_to_text
 
+from wikipedia import wikipedia_image_search
+
 from rq import Queue
 from rq.registry import StartedJobRegistry
 from redis import Redis
@@ -93,6 +95,16 @@ def tag_pos():
     except Exception as error:
         return jsonify(error=error)
 
+@app.route("/discover-images")
+def discover_images():
+    try:
+        words = request.args.get('words').split(",")
+        suffixes = request.args.get('suffixes').split(",")
+        images = wikipedia_image_search(words, suffixes)
+        return jsonify(images=images)
+    except Exception as error:
+        return jsonify(error=error)
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', debug=False, port=port)
+    app.run(host='0.0.0.0', debug=True, port=port)
