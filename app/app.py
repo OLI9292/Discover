@@ -12,6 +12,8 @@ from lemmatization import get_lemmas, lcd_for_word
 from address import find_addresses_in_text
 from index_text import index_text, convert_epub_to_text
 
+from wikipedia import wikipedia_image_search
+
 from rq import Queue
 from rq.registry import StartedJobRegistry
 from redis import Redis
@@ -90,6 +92,16 @@ def tag_pos():
         tagged = pos_tag(word_tokenize(sentence))
         tagged = [{"value": t[0], "tag": t[1]} for t in tagged]
         return jsonify(tagged=tagged)
+    except Exception as error:
+        return jsonify(error=error)
+
+@app.route("/discover-images")
+def discover_images():
+    try:
+        words = request.args.get('words').split(",")
+        suffixes = request.args.get('suffixes').split(",")
+        images = wikipedia_image_search(words, suffixes)
+        return jsonify(images=images)
     except Exception as error:
         return jsonify(error=error)
 
