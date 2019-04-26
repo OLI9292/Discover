@@ -35,7 +35,6 @@ def pages_for_(result):
 
 # https://www.mediawiki.org/w/api.php?action=help&modules=query
 def wikipedia_image_search(words, suffixes, page_limit = 5):
-  start = time.time()
   results = []
 
   # just search the base term if no suffixes given
