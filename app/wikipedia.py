@@ -5,7 +5,6 @@ import requests
 
 pp = pprint.PrettyPrinter(indent=1)
 
-SUFFIXES = ['diagram','illustration']
 API_URL = 'https://commons.wikimedia.org/w/api.php'
 
 def search_images_params(search_term):
@@ -17,12 +16,12 @@ def search_images_params(search_term):
     'gsrsearch': search_term, 
   }
 
-def raw(page):
-  return {
-    'action': 'parse',
-    'format': 'json',
-    'page': page 
-  }
+# def raw(page):
+#   return {
+#     'action': 'parse',
+#     'format': 'json',
+#     'page': page 
+#   }
   
 def find_images_params(filenames):
   return {
@@ -43,6 +42,7 @@ def wikipedia_image_search(words, suffixes, page_limit = 5):
   start = time.time()
   results = []
 
+  # just search the base term if no suffixes given
   if len(suffixes) == 0:
       suffixes.append(None)
 
@@ -82,8 +82,4 @@ def wikipedia_image_search(words, suffixes, page_limit = 5):
           'descriptionUrl': page['imageinfo'][0]['descriptionurl']
         })
 
-  print("Found " + str(len(results)) + " results")
-  pp.pprint(results)
-  end = time.time()
-  print(end - start)
   return results
