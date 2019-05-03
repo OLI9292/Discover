@@ -1,8 +1,10 @@
 import os
 import itertools
 import json
-import os
+from multiprocessing import Pool
+from itertools import repeat
 import sys
+import time
 sys.dont_write_bytecode = True
 
 from flask import Flask, Response, jsonify, render_template, request
@@ -12,7 +14,7 @@ from lemmatization import get_lemmas, lcd_for_word
 from address import find_addresses_in_text
 from index_text import index_text, convert_epub_to_text
 
-from wikipedia import wikipedia_image_search
+from wikipedia import wikipedia_image_search, upload_images_to_s3
 
 from rq import Queue
 from rq.registry import StartedJobRegistry
@@ -67,6 +69,7 @@ def get_status(task_id):
                 'job_id': job.get_id(),
                 'status': job.get_status(),
                 'es_id': job.meta.get('es_id'),
+                'images': job.meta.get('images'),
                 'error': job.meta.get('error'),
                 'progress': job.meta.get('progress')
             }
@@ -100,11 +103,36 @@ def discover_images():
     try:
         words = request.args.get('words').split(",")
         suffixes = request.args.get('suffixes').split(",")
-        images = wikipedia_image_search(words, suffixes)
+        pool = Pool(4)
+        args = zip(words, repeat(suffixes))
+        images = pool.map(wikipedia_image_search, args)        
+        images = [item for sublist in images for item in sublist]
         return jsonify(images=images)
     except Exception as error:
+        print "ERR:", error
         return jsonify(error=error)
+
+@app.route("/upload-images", methods=['POST'])
+def upload_images():
+    try:
+        old_job_ids = registry.get_job_ids()
+
+        if len(old_job_ids) > 0:
+            message = "Already processing file. Please wait a minute and try again."
+            return jsonify(error=message)     
+
+        job = q.enqueue_call(
+            func=upload_images_to_s3,
+            args=(request.json),
+            timeout=6000,
+            result_ttl=5000)
+
+        return jsonify(id=job.id)            
+    except Exception as error:
+        print "ERR:", error
+        return jsonify(error=error)        
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
+    print("running...")
     app.run(host='0.0.0.0', debug=False, port=port)
