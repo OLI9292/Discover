@@ -104,7 +104,7 @@ def discover_images():
         words = request.args.get('words').split(",")
         suffixes = request.args.get('suffixes').split(",")
         pool = Pool(4)
-        args = zip(words, repeat(suffixes))
+        args = zip(words, repeat([suffixes, len(words)]))
         images = pool.map(wikipedia_image_search, args)        
         images = [item for sublist in images for item in sublist]
         return jsonify(images=images)

@@ -83,8 +83,10 @@ def unpack(func):
 
 # https://www.mediawiki.org/w/api.php?action=help&modules=query
 @unpack
-def wikipedia_image_search(word, suffixes):
-  page_limit = 2
+def wikipedia_image_search(word, data):
+  suffixes = data[0]
+  word_count = data[1]
+  page_limit = 4
   results = []
 
   # just search the base term if no suffixes given
@@ -113,7 +115,9 @@ def wikipedia_image_search(word, suffixes):
         params.update(result['continue'])
         
   if len(files_for_word):
-    params = find_images_params(files_for_word[0:25])
+    count = min(max(20, 100 / word_count),50)
+    sliced = files_for_word[0:count]
+    params = find_images_params(sliced)
     result = requests.get(API_URL, params=params).json()
     if 'error' in result:
       raise Exception(result['error']['info'])
@@ -130,6 +134,7 @@ def wikipedia_image_search(word, suffixes):
       })
 
       raw_page = requests.get(API_URL, params=raw(page['title'])).json()
+
       if "parse" in raw_page:
         metadata = parse_raw_page(raw_page["parse"]["text"]["*"])
         data.update(metadata)
