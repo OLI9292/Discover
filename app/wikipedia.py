@@ -84,9 +84,11 @@ def unpack(func):
 # https://www.mediawiki.org/w/api.php?action=help&modules=query
 @unpack
 def wikipedia_image_search(word, data):
+  requests_counter = 0
+
   suffixes = data[0]
   word_count = data[1]
-  page_limit = 4
+  page_limit = 10
   results = []
 
   # just search the base term if no suffixes given
@@ -104,10 +106,11 @@ def wikipedia_image_search(word, data):
 
     while True:
       counter += 1
+      requests_counter += 1
       result = requests.get(API_URL, params=params).json()
       if 'error' in result:
         raise Exception(result['error']['info'])
-      titles = [p['title'] for p in pages_for_(result)] 
+      titles = [p['title'] for p in pages_for_(result)]
       files_for_word += [t for t in titles if 'File' in t and 'svg' not in t and 'pdf' not in t]
       if 'continue' not in result or counter >= page_limit:
         break
@@ -115,9 +118,11 @@ def wikipedia_image_search(word, data):
         params.update(result['continue'])
         
   if len(files_for_word):
+    # limit of 50
     count = min(max(20, 100 / word_count),50)
     sliced = files_for_word[0:count]
     params = find_images_params(sliced)
+    requests_counter +=1
     result = requests.get(API_URL, params=params).json()
     if 'error' in result:
       raise Exception(result['error']['info'])
@@ -126,13 +131,21 @@ def wikipedia_image_search(word, data):
     for page in pages:
       data = {}
 
+      url = page['imageinfo'][0]['url']
+      if url.endswith("tif"):
+        continue
+      # thumbnail - https://stackoverflow.com/a/33691240
+      thumbnail = url.replace("commons/","commons/thumb/") + "/200px-" + url.split("/")[-1]
+
       data.update({
         'word': word,
         'title': page['title'],
-        'url': page['imageinfo'][0]['url'],
-        'descriptionUrl': page['imageinfo'][0]['descriptionurl']
+        'url': url,
+        'descriptionUrl': page['imageinfo'][0]['descriptionurl'],
+        'thumbnail': thumbnail
       })
 
+      requests_counter +=1
       raw_page = requests.get(API_URL, params=raw(page['title'])).json()
 
       if "parse" in raw_page:
@@ -141,4 +154,5 @@ def wikipedia_image_search(word, data):
         
       results.append(data)
 
+  print requests_counter, "requests"
   return results

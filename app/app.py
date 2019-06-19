@@ -101,8 +101,8 @@ def tag_pos():
 @app.route("/discover-images")
 def discover_images():
     try:
-        words = request.args.get('words').split(",")
-        suffixes = request.args.get('suffixes').split(",")
+        words = [s.strip() for s in request.args.get('words').split(",")]
+        suffixes = [s.strip() for s in request.args.get('suffixes').split(",")]
         pool = Pool(4)
         args = zip(words, repeat([suffixes, len(words)]))
         images = pool.map(wikipedia_image_search, args)        
@@ -116,7 +116,7 @@ def discover_images():
 def upload_images():
     try:
         old_job_ids = registry.get_job_ids()
-
+        
         if len(old_job_ids) > 0:
             message = "Already processing file. Please wait a minute and try again."
             return jsonify(error=message)     
@@ -135,4 +135,4 @@ def upload_images():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     print("running...")
-    app.run(host='0.0.0.0', debug=False, port=port)
+    app.run(host='0.0.0.0', debug=False, port=5003)
