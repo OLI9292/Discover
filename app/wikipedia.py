@@ -3,6 +3,7 @@ import requests
 from functools import wraps
 from bs4 import BeautifulSoup
 import uuid
+import hashlib
 
 from index_text import add_to_current_job
 from s3 import s3_resource
@@ -10,13 +11,22 @@ from s3 import s3_resource
 API_URL = 'https://commons.wikimedia.org/w/api.php'
 IMAGE_BUCKET = 'invisible-college-images'
 
+
+def enrich_wiki_image(data):
+    raw_page = requests.get(API_URL, params=raw(data['title'])).json()
+
+    if "parse" in raw_page:
+      metadata = parse_raw_page(raw_page["parse"]["text"]["*"])
+      data.update(metadata)
+        
+    return data
+
 def upload_images_to_s3(*argv):
   images = []
   counter = 0
 
   for image in argv:
-    print "uploading " + image["url"]
-    counter +=1
+    image = enrich_wiki_image(image)
     key = str(uuid.uuid4()) + ".jpg"
     data = requests.get(image["url"], stream=True).raw.read()
     s3_resource.Bucket(IMAGE_BUCKET).put_object(Key=key, Body=data)
@@ -40,17 +50,17 @@ def raw(page):
   return {
     'action': 'parse',
     'format': 'json',
-    'page': page 
+    'page': "File:" + page
   }
   
-def find_images_params(filenames):
-  return {
-    'action': 'query',
-    'format': 'json',
-    'prop': 'imageinfo', 
-    'titles': '|'.join(filenames), 
-    'iiprop': 'url|metadata'
-  }
+# def find_images_params(filenames):
+#   return {
+#     'action': 'query',
+#     'format': 'json',
+#     'prop': 'imageinfo', 
+#     'titles': '|'.join(filenames), 
+#     'iiprop': 'url|metadata'
+#   }
 
 def pages_for_(result):
   if 'query' in result and 'pages' in result['query']:
@@ -72,18 +82,37 @@ def parse_raw_page(html):
       "source": sources
     }
   except Exception as e:
-    print "ERR:",e
+    print("ERR:",e)
   
+def good_image_file(title):
+  return 'File' in title and 'svg' not in title and 'pdf' not in title and "gif" not in title
+
+def add_urls_for(title, word):
+  title = title.replace(" ", "_").replace("File:", "")
+  md5 = hashlib.md5()
+  md5.update(title.encode('utf-8'))
+  path = md5.hexdigest()[0] + "/" + md5.hexdigest()[0:2] + "/"
+  url = "https://upload.wikimedia.org/wikipedia/commons/" + path + title
+  thumbnail = url.replace("commons/","commons/thumb/") + "/200px-" + url.split("/")[-1]
+  return {
+    "url": url,
+    "thumbnail": thumbnail,
+    "title": title,
+    "word": word
+  }
+
 
 def unpack(func):
     @wraps(func)
     def wrapper(arg_tuple):
         return func(*arg_tuple)
-    return wrapper
+    return wrapper  
 
 # https://www.mediawiki.org/w/api.php?action=help&modules=query
 @unpack
 def wikipedia_image_search(word, data):
+  print("Searching images for " + word)
+
   requests_counter = 0
 
   suffixes = data[0]
@@ -99,8 +128,10 @@ def wikipedia_image_search(word, data):
       
   for suffix in suffixes:
     search_term = word
+    
     if suffix:
         search_term += " " + suffix
+
     params = search_images_params(search_term)
     counter = 0
 
@@ -108,51 +139,17 @@ def wikipedia_image_search(word, data):
       counter += 1
       requests_counter += 1
       result = requests.get(API_URL, params=params).json()
+      
       if 'error' in result:
         raise Exception(result['error']['info'])
-      titles = [p['title'] for p in pages_for_(result)]
-      files_for_word += [t for t in titles if 'File' in t and 'svg' not in t and 'pdf' not in t]
+
+      files_for_word += [p['title'] for p in pages_for_(result) if good_image_file(p['title'])]
+
       if 'continue' not in result or counter >= page_limit:
         break
+
       else:
         params.update(result['continue'])
-        
-  if len(files_for_word):
-    # limit of 50
-    count = min(max(20, 100 / word_count),50)
-    sliced = files_for_word[0:count]
-    params = find_images_params(sliced)
-    requests_counter +=1
-    result = requests.get(API_URL, params=params).json()
-    if 'error' in result:
-      raise Exception(result['error']['info'])
-    pages = [p for p in pages_for_(result) if 'imageinfo' in p and len(p['imageinfo'])]
-    
-    for page in pages:
-      data = {}
 
-      url = page['imageinfo'][0]['url']
-      if url.endswith("tif"):
-        continue
-      # thumbnail - https://stackoverflow.com/a/33691240
-      thumbnail = url.replace("commons/","commons/thumb/") + "/200px-" + url.split("/")[-1]
-
-      data.update({
-        'word': word,
-        'title': page['title'],
-        'url': url,
-        'descriptionUrl': page['imageinfo'][0]['descriptionurl'],
-        'thumbnail': thumbnail
-      })
-
-      requests_counter +=1
-      raw_page = requests.get(API_URL, params=raw(page['title'])).json()
-
-      if "parse" in raw_page:
-        metadata = parse_raw_page(raw_page["parse"]["text"]["*"])
-        data.update(metadata)
-        
-      results.append(data)
-
-  print requests_counter, "requests"
-  return results
+  print("Completed " + word)
+  return [add_urls_for(f, word) for f in files_for_word]

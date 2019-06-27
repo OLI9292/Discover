@@ -2,7 +2,6 @@ import os
 from io import BytesIO
 import io
 import uuid
-import inflect
 import re
 import urllib
 import json
@@ -22,7 +21,7 @@ import pytesseract
 if os.getenv('IS_HEROKU'):
     pytesseract.pytesseract.tesseract_cmd = '/app/.apt/usr/bin/tesseract'
 
-from cStringIO import StringIO
+from io import StringIO
 from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
 from pdfminer.converter import TextConverter
 from pdfminer.layout import LAParams
@@ -58,12 +57,12 @@ def add_to_current_job(key, message, override=True):
 
 def index_text(filename, index, is_rob):
     try:
-        print "fetching file from s3"
+        print("fetching file from s3")
         obj = s3_client.get_object(Bucket='invisible-college-texts', Key=filename)
         text = obj['Body'].read()
 
         if filename.endswith("pdf"):
-            print "extracting text from pdf"
+            print("extracting text from pdf")
             text = extract_text_from_pdf(text)
         else:
             text = decode(text)
@@ -71,7 +70,7 @@ def index_text(filename, index, is_rob):
         text = clean(text)
         texts = tokenize(text, index, filename_to_title(filename))
         add_to_current_job('progress', 0.925)
-        print "indexing documents in elasticsearch"
+        print("indexing documents in elasticsearch")
         helpers.bulk(es_client, texts, routing=1)
         add_to_current_job('progress', 0.95)
         
@@ -110,7 +109,7 @@ def ocr_pdf(pdf):
         with open(path, "wb") as outputStream:
             outputStream.write(pdf)
 
-        print "splitting pdf"
+        print("splitting pdf")
         add_to_current_job('progress', 0.05)
         counter = 0
         paths = []
@@ -128,7 +127,7 @@ def ocr_pdf(pdf):
             with open(path, "wb") as outputStream:
                 output.write(outputStream)
         
-        print "converting pdf to images"
+        print("converting pdf to images")
         with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
             jobs = [executor.submit(pdf_to_image, path) for path in paths]
             counter = 0
@@ -137,7 +136,7 @@ def ocr_pdf(pdf):
                 progress = max(0.1, 0.1 + (0.35 * float(counter) / float(pages_count)))
                 add_to_current_job('progress', progress)
 
-        print "running ocr on images"
+        print("running ocr on images")
         text = ""
         with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
             jobs = [executor.submit(ocr, path.replace("pdf", "jpg")) for path in paths]
@@ -152,7 +151,7 @@ def ocr_pdf(pdf):
 
         return text
     except Exception as error:
-        print error
+        print(error)
         raise
 
 # File Conversion
@@ -173,7 +172,7 @@ def extract_text_from_pdf(pdf, max_pages=2000):
         if page_number > max_pages:
             break
         if (page_number % 25 == 0) & (page_number > 0):
-            print "\tprocessing", page_number
+            print("\tprocessing", page_number)
         
         interpreter.process_page(page)
         value = output.getvalue()
@@ -305,14 +304,12 @@ def cut_off_index(text):
         idx = match.start()
         percent = float(idx) / text_length
         if percent > 0.9:
-            print "cutting off at percent " + \
-                str(round(percent, 3) * 100) + "% (" + string + ")"
+            print("cutting off at percent " + str(round(percent, 3) * 100) + "% (" + string + ")")
             return text[:idx]
 
     percent = cut_off_percent(text)
     if percent != None:
-        print "cutting off at percent " + \
-            str(percent * 100) + "% (too many numbers)"
+        print("cutting off at percent " + str(percent * 100) + "% (too many numbers)")
         return text[:int(percent * text_length)]
 
     return text
