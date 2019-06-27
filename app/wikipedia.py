@@ -85,7 +85,8 @@ def parse_raw_page(html):
     print("ERR:",e)
   
 def good_image_file(title):
-  return 'File' in title and 'svg' not in title and 'pdf' not in title and "gif" not in title
+  undesired = ['.svg', '.pdf', '.gif', '.tif', '.ogv', '.webm', 'Deletion requests', 'Featured picture candidates']
+  return 'File:' in title and not any(substring in title for substring in undesired)
 
 def add_urls_for(title, word):
   title = title.replace(" ", "_").replace("File:", "")
@@ -94,6 +95,7 @@ def add_urls_for(title, word):
   path = md5.hexdigest()[0] + "/" + md5.hexdigest()[0:2] + "/"
   url = "https://upload.wikimedia.org/wikipedia/commons/" + path + title
   thumbnail = url.replace("commons/","commons/thumb/") + "/200px-" + url.split("/")[-1]
+
   return {
     "url": url,
     "thumbnail": thumbnail,

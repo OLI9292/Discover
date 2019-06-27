@@ -92,7 +92,7 @@ def discover_images():
         words = [s.strip() for s in request.args.get('words').split(",")]
         suffixes = [s.strip() for s in request.args.get('suffixes').split(",")]
 
-        pool = Pool(10)
+        pool = Pool(4)
         args = zip(words, repeat([suffixes, len(words)]))
         images = pool.map(wikipedia_image_search, args)        
         images = [item for sublist in images for item in sublist]
