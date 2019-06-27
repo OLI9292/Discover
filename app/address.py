@@ -24,7 +24,7 @@ def is_not_using_citation(address, groups, should_print=False):
     split = " ".join(groups).lower().split(address.lower())
     result = (look_for[0] not in split[0]) | (look_for[1] not in split[1])
     if (result == False) & should_print:
-        print "bad: " + address
+        print("bad: " + address)
     return result
 
 

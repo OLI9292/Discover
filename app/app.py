@@ -10,7 +10,6 @@ sys.dont_write_bytecode = True
 from flask import Flask, Response, jsonify, render_template, request
 from flask_cors import CORS, cross_origin
 
-from lemmatization import get_lemmas, lcd_for_word
 from address import find_addresses_in_text
 from index_text import index_text, convert_epub_to_text
 
@@ -27,7 +26,7 @@ from nltk import pos_tag, word_tokenize
 app = Flask(__name__)
 CORS(app)
 
-REDIS_URL = os.getenv('REDIS_URL', 'http://localhost:6379')
+REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379')
 redis_conn = Redis.from_url(REDIS_URL)
 
 q = Queue(connection=redis_conn)
@@ -77,17 +76,6 @@ def get_status(task_id):
     return jsonify(error="not found")
 
 
-@app.route("/lemmatizations")
-def lemmatizations():
-    try:
-        word = request.args.get('word')
-        lemmas = get_lemmas(word)
-        lcd = lcd_for_word(word, lemmas)
-        return jsonify(lemmas=lemmas, lcd=lcd)
-    except Exception as error:
-        return jsonify(error=error)
-
-
 @app.route("/tag-pos")
 def tag_pos():
     try:
@@ -101,22 +89,24 @@ def tag_pos():
 @app.route("/discover-images")
 def discover_images():
     try:
-        words = request.args.get('words').split(",")
-        suffixes = request.args.get('suffixes').split(",")
-        pool = Pool(4)
-        args = zip(words, repeat(suffixes))
+        words = [s.strip() for s in request.args.get('words').split(",")]
+        suffixes = [s.strip() for s in request.args.get('suffixes').split(",")]
+
+        pool = Pool(10)
+        args = zip(words, repeat([suffixes, len(words)]))
         images = pool.map(wikipedia_image_search, args)        
         images = [item for sublist in images for item in sublist]
+
         return jsonify(images=images)
     except Exception as error:
-        print "ERR:", error
+        print("ERR:", error)
         return jsonify(error=error)
 
 @app.route("/upload-images", methods=['POST'])
 def upload_images():
     try:
         old_job_ids = registry.get_job_ids()
-
+        
         if len(old_job_ids) > 0:
             message = "Already processing file. Please wait a minute and try again."
             return jsonify(error=message)     
@@ -129,10 +119,10 @@ def upload_images():
 
         return jsonify(id=job.id)            
     except Exception as error:
-        print "ERR:", error
+        print("ERR:", error)
         return jsonify(error=error)        
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     print("running...")
-    app.run(host='0.0.0.0', debug=False, port=port)
+    app.run(host='0.0.0.0', debug=True, port=5003)
