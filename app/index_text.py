@@ -21,7 +21,6 @@ import pytesseract
 if os.getenv('IS_HEROKU'):
     pytesseract.pytesseract.tesseract_cmd = '/app/.apt/usr/bin/tesseract'
 
-from io import StringIO
 from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
 from pdfminer.converter import TextConverter
 from pdfminer.layout import LAParams
@@ -59,8 +58,10 @@ def index_text(filename, index, is_rob):
     try:
         print("fetching file from s3")
         obj = s3_client.get_object(Bucket='invisible-college-texts', Key=filename)
+        print("reading file")
         text = obj['Body'].read()
 
+        print("cleaning text")
         if filename.endswith("pdf"):
             print("extracting text from pdf")
             text = extract_text_from_pdf(text)
@@ -68,12 +69,14 @@ def index_text(filename, index, is_rob):
             text = decode(text)
 
         text = clean(text)
-        texts = tokenize(text, index, filename_to_title(filename))
+        print("tokenizing text")
+        texts = tokenize(text, index.replace("-","_"), filename_to_title(filename))
         add_to_current_job('progress', 0.925)
-        print("indexing documents in elasticsearch")
+        print("indexing " + str(len(texts)) + " documents in elasticsearch")
         helpers.bulk(es_client, texts, routing=1)
         add_to_current_job('progress', 0.95)
-        
+        print("success")
+
         if is_rob:
             time.sleep(7)
             add_to_current_job('progress', 0.975)
@@ -86,7 +89,8 @@ def index_text(filename, index, is_rob):
         
         return
     except Exception as error:
-        add_to_current_job('error', error.message)
+        print("ERR:", error)
+        add_to_current_job('error', error)
         return
 
 ## OCR
@@ -164,7 +168,7 @@ def extract_text_from_pdf(pdf, max_pages=2000):
     interpreter = PDFPageInterpreter(manager, converter)
 
     text = ""
-    fp = StringIO(pdf)
+    fp = BytesIO(pdf)
     needs_ocr = True
 
     page_count = len(list(PDFPage.get_pages(fp)))
@@ -186,7 +190,7 @@ def extract_text_from_pdf(pdf, max_pages=2000):
             add_to_current_job('progress', float(page_number) / float(page_count))
 
         text += "\n\n<page>" + str(page_number) + "</page>\n\n"
-        text += output.getvalue()
+        text += output.getvalue().decode("utf-8") 
 
         output.truncate(0)
         output.seek(0)
@@ -194,18 +198,25 @@ def extract_text_from_pdf(pdf, max_pages=2000):
     fp.close()
     converter.close()
     output.close()
-    return text if needs_ocr else decode(text)
+    
+    return text
 
 
 def convert_epub_to_text(path):
-    book = epub.read_epub(path)
-    html = ""
-    items = book.get_items()
-    for page_number, item in enumerate(items):
-        if item.get_type() == ebooklib.ITEM_DOCUMENT:
-            html += item.get_content()
-    text = re.sub('<[^<]+?>', '', html)
-    return text
+    try:
+        book = epub.read_epub(path)
+        html = ""
+        items = book.get_items()
+        for page_number, item in enumerate(items):
+            print("Converting page", page_number)
+            if item.get_type() == ebooklib.ITEM_DOCUMENT:
+                html += item.get_content().decode("utf-8") 
+        text = re.sub('<[^<]+?>', '', html)
+        return text
+    except Exception as error:
+        print("ERR:", error)
+        raise    
+
 
 # Data cleaning
 #
@@ -216,9 +227,12 @@ def filename_to_title(filename):
         filename = filename.replace(s, "")
     return filename.replace("_", " ").strip().title()
 
+def cmp(a, b):
+    return (a > b) - (a < b) 
+
 def normalize_cardinals(data):
-    keys = number_to_word_mapping.keys()
-    keys.sort(lambda x, y: cmp(len(y), len(x)))
+    keys = list(number_to_word_mapping.keys())
+    keys.sort(key=lambda args: cmp(len(args[1]), len(args[0])))
 
     lowered = data.lower()
 
@@ -227,7 +241,7 @@ def normalize_cardinals(data):
             pattern = re.compile(key)
             data = pattern.sub(number_to_word_mapping[key], data)
 
-    values = number_to_word_mapping.values()
+    values = list(number_to_word_mapping.values())
     for value in values:
         if value.lower() in lowered:
             pattern = re.compile(value, re.IGNORECASE)
@@ -337,7 +351,7 @@ def clean(text):
 
 
 def chunks(l, n):
-    return [l[i:i + n] for i in xrange(0, len(l), n)]
+    return [l[i:i + n] for i in range(0, len(l), n)]
 
 
 def tokenize(text, index, title):

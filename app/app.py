@@ -46,12 +46,15 @@ def index_texts():
         return jsonify(error=message)        
     # Convert epubs to text
     if filename.endswith("epub"):
+        print("Converting epub to txt.")
         if os.path.exists("tmp") == False:
             os.makedirs("tmp")
         text.save("tmp/" + filename)
         text = convert_epub_to_text("tmp/" + filename)
+        print("Conversion done.")
         filename = filename.replace("epub", "txt")
     # Store file on S3
+    print("Storing", filename, "on s3.")
     s3_resource.Bucket('invisible-college-texts').put_object(Key=filename, Body=text)
     # Send to Background queue
     job = q.enqueue_call(func=index_text, args=(filename, index, is_rob), timeout=6000, result_ttl=5000)
