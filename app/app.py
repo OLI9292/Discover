@@ -100,6 +100,7 @@ def discover_images():
         images = pool.map(wikipedia_image_search, args)        
         images = [item for sublist in images for item in sublist]
 
+        print(images)
         print("Found " + str(len(images)) + " images.")
         return jsonify(images=images)
     except Exception as error:
