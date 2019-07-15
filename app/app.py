@@ -109,6 +109,7 @@ def discover_images():
 @app.route("/upload-images", methods=['POST'])
 def upload_images():
     try:
+        # redis_conn.flushall()
         old_job_ids = registry.get_job_ids()
         
         if len(old_job_ids) > 0:

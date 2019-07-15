@@ -25,15 +25,16 @@ def upload_images_to_s3(*argv):
   images = []
   counter = 0
 
-  for image in argv:
+  for image in argv[0:10]:
+    counter += 1
     image = enrich_wiki_image(image)
     key = str(uuid.uuid4()) + ".jpg"
     data = requests.get(image["url"], stream=True).raw.read()
     s3_resource.Bucket(IMAGE_BUCKET).put_object(Key=key, Body=data)
     image["url"] = IMAGE_BUCKET + "/" + key
     images.append(image)
-    add_to_current_job('progress', max(counter / float(len(argv)),0.95))
-  
+    add_to_current_job('progress', min(counter / float(len(argv)),0.95))
+
   add_to_current_job('images', images)
   return
 
