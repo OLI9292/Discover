@@ -25,7 +25,7 @@ def upload_images_to_s3(*argv):
   images = []
   counter = 0
 
-  for image in argv[0:10]:
+  for image in argv:
     counter += 1
     image = enrich_wiki_image(image)
     key = str(uuid.uuid4()) + ".jpg"
