@@ -92,7 +92,7 @@ def tag_pos():
 @app.route("/discover-images")
 def discover_images():
     try:
-        words = [s.strip() for s in request.args.get('words').split(",")]
+        words = [s.strip() for s in request.args.get('words').encode('utf-8').split(",")]
         suffixes = [s.strip() for s in request.args.get('suffixes').split(",")]
 
         pool = Pool(4)
