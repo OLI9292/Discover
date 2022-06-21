@@ -37,7 +37,7 @@ lxml==4.2.5
 MarkupSafe==1.0
 monotonic==1.5
 nltk==3.2.1
-numpy==1.15.1
+numpy==1.22.0
 pathtools==0.1.2
 pdf2image==1.4.0
 pdfminer==20140328
